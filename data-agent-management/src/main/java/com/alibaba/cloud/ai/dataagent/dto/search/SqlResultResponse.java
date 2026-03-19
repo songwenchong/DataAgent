@@ -46,4 +46,6 @@ public class SqlResultResponse {
 
 	private String message;
 
+	private String step;
+
 }

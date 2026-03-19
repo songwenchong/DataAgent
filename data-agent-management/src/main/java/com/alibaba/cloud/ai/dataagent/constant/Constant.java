@@ -161,4 +161,6 @@ public final class Constant {
 	// Langfuse 追踪：threadId 透传到 graph state，用于 token 累计
 	public static final String TRACE_THREAD_ID = "TRACE_THREAD_ID";
 
+	public static final String LIGHTWEIGHT_SQL_RESULT_MODE = "LIGHTWEIGHT_SQL_RESULT_MODE";
+
 }

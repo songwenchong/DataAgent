@@ -45,6 +45,8 @@ public interface FileStorageService {
 	 */
 	boolean deleteFile(String filePath);
 
+	boolean fileExists(String filePath);
+
 	/**
 	 * 获取文件访问URL
 	 * @param filePath 文件路径

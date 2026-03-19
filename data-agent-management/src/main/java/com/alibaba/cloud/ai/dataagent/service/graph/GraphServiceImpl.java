@@ -21,9 +21,11 @@ import static com.alibaba.cloud.ai.dataagent.constant.Constant.HUMAN_FEEDBACK_NO
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.HUMAN_REVIEW_ENABLED;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.INPUT_KEY;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.IS_ONLY_NL2SQL;
+import static com.alibaba.cloud.ai.dataagent.constant.Constant.LIGHTWEIGHT_SQL_RESULT_MODE;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.MULTI_TURN_CONTEXT;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.SQL_GENERATE_OUTPUT;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.SQL_REGENERATE_REASON;
+import static com.alibaba.cloud.ai.dataagent.constant.Constant.SQL_EXECUTE_NODE_OUTPUT;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.SQL_RESULT_LIST_MEMORY;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.STREAM_EVENT_COMPLETE;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.STREAM_EVENT_ERROR;
@@ -33,12 +35,14 @@ import com.alibaba.cloud.ai.dataagent.dto.GraphRequest;
 import com.alibaba.cloud.ai.dataagent.dto.datasource.SqlRetryDto;
 import com.alibaba.cloud.ai.dataagent.dto.search.SqlResultColumnDTO;
 import com.alibaba.cloud.ai.dataagent.dto.search.SqlResultResponse;
+import com.alibaba.cloud.ai.dataagent.bo.schema.ResultSetBO;
 import com.alibaba.cloud.ai.dataagent.entity.SemanticModel;
 import com.alibaba.cloud.ai.dataagent.enums.TextType;
 import com.alibaba.cloud.ai.dataagent.service.graph.Context.MultiTurnContextManager;
 import com.alibaba.cloud.ai.dataagent.service.graph.Context.StreamContext;
 import com.alibaba.cloud.ai.dataagent.service.langfuse.LangfuseService;
 import com.alibaba.cloud.ai.dataagent.service.semantic.SemanticModelService;
+import com.alibaba.cloud.ai.dataagent.util.JsonUtil;
 import com.alibaba.cloud.ai.dataagent.util.StateUtil;
 import com.alibaba.cloud.ai.dataagent.vo.GraphNodeResponse;
 import com.alibaba.cloud.ai.dataagent.workflow.node.PlannerNode;
@@ -63,6 +67,8 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
@@ -74,6 +80,8 @@ import reactor.core.publisher.Sinks;
 @Slf4j
 @Service
 public class GraphServiceImpl implements GraphService {
+
+	private static final Pattern STEP_PATTERN = Pattern.compile("step_(\\d+)");
 
 	private final CompiledGraph compiledGraph;
 
@@ -120,7 +128,8 @@ public class GraphServiceImpl implements GraphService {
 			OverAllState state = compiledGraph
 				.invoke(
 						Map.of(IS_ONLY_NL2SQL, false, INPUT_KEY, graphRequest.getQuery(), AGENT_ID,
-								graphRequest.getAgentId(), HUMAN_REVIEW_ENABLED, false, MULTI_TURN_CONTEXT, "",
+								graphRequest.getAgentId(), HUMAN_REVIEW_ENABLED, false,
+								LIGHTWEIGHT_SQL_RESULT_MODE, true, MULTI_TURN_CONTEXT, "",
 								TRACE_THREAD_ID, graphRequest.getThreadId()),
 						RunnableConfig.builder().threadId(graphRequest.getThreadId()).build())
 				.orElseThrow(() -> new IllegalStateException("Graph execution returned empty state"));
@@ -147,25 +156,29 @@ public class GraphServiceImpl implements GraphService {
 
 	private SqlResultResponse buildSqlResultResponse(GraphRequest graphRequest, OverAllState state) {
 		Map<String, Object> finalResult = extractFinalSqlResultMemory(state);
+		if (finalResult.isEmpty()) {
+			finalResult = extractFinalResultFromExecutionResults(state);
+		}
 		SqlRetryDto retryStatus = StateUtil.getObjectValue(state, SQL_REGENERATE_REASON, SqlRetryDto.class,
 				SqlRetryDto.empty());
 		String sql = extractFinalSql(state, finalResult);
 		String tableName = getStringValue(finalResult.get("table_name"));
+		String step = getStringValue(finalResult.get("step"));
 		List<Map<String, Object>> rows = extractResultRows(finalResult);
 		List<String> fields = extractColumns(finalResult, rows);
 		List<SqlResultColumnDTO> columns = buildColumnsWithBusinessNames(graphRequest.getAgentId(), tableName, fields);
 
 		if (!rows.isEmpty()) {
-			return buildSuccessResponse(graphRequest, sql, columns, rows, "ok");
+			return buildSuccessResponse(graphRequest, step, sql, columns, rows, "ok");
 		}
 
 		if (retryStatus.type() == SqlRetryDto.SqlRetryType.EMPTY_RESULT
 				|| retryStatus.type() == SqlRetryDto.SqlRetryType.NO_TARGET_FOUND) {
-			return buildSuccessResponse(graphRequest, sql, columns, rows, "No data matched the query");
+			return buildSuccessResponse(graphRequest, step, sql, columns, rows, "No data matched the query");
 		}
 
 		if (!finalResult.isEmpty()) {
-			return buildSuccessResponse(graphRequest, sql, columns, rows, "No data matched the query");
+			return buildSuccessResponse(graphRequest, step, sql, columns, rows, "No data matched the query");
 		}
 
 		String failureMessage = StringUtils.hasText(retryStatus.reason()) ? retryStatus.reason()
@@ -181,8 +194,63 @@ public class GraphServiceImpl implements GraphService {
 		if (resultMemory == null || resultMemory.isEmpty()) {
 			return Collections.emptyMap();
 		}
-		Map<String, Object> finalResult = resultMemory.get(resultMemory.size() - 1);
+		Map<String, Object> finalResult = null;
+		int maxStep = -1;
+		for (Map<String, Object> item : resultMemory) {
+			if (item == null) {
+				continue;
+			}
+			int currentStep = parseStepNumber(getStringValue(item.get("step")));
+			if (currentStep >= maxStep) {
+				maxStep = currentStep;
+				finalResult = item;
+			}
+		}
 		return finalResult != null ? finalResult : Collections.emptyMap();
+	}
+
+	@SuppressWarnings("unchecked")
+	private Map<String, Object> extractFinalResultFromExecutionResults(OverAllState state) {
+		Map<String, String> executionResults = StateUtil.getObjectValue(state, SQL_EXECUTE_NODE_OUTPUT, Map.class,
+				new HashMap<>());
+		if (executionResults == null || executionResults.isEmpty()) {
+			return Collections.emptyMap();
+		}
+
+		String latestStepKey = null;
+		int latestStep = -1;
+		for (String key : executionResults.keySet()) {
+			if (!StringUtils.hasText(key) || key.endsWith("_analysis")) {
+				continue;
+			}
+			int currentStep = parseStepNumber(key);
+			if (currentStep >= latestStep) {
+				latestStep = currentStep;
+				latestStepKey = key;
+			}
+		}
+
+		if (!StringUtils.hasText(latestStepKey)) {
+			return Collections.emptyMap();
+		}
+
+		String resultJson = executionResults.get(latestStepKey);
+		if (!StringUtils.hasText(resultJson)) {
+			return Collections.emptyMap();
+		}
+
+		try {
+			ResultSetBO resultSetBO = JsonUtil.getObjectMapper().readValue(resultJson, ResultSetBO.class);
+			Map<String, Object> result = new HashMap<>();
+			result.put("step", latestStepKey);
+			result.put("columns", resultSetBO.getColumn());
+			result.put("data", resultSetBO.getData());
+			return result;
+		}
+		catch (Exception e) {
+			log.warn("Parse latest execution result failed for stepKey: {}", latestStepKey, e);
+			return Collections.emptyMap();
+		}
 	}
 
 	private String extractFinalSql(OverAllState state, Map<String, Object> finalResult) {
@@ -280,13 +348,14 @@ public class GraphServiceImpl implements GraphService {
 		return normalizeIdentifier(currentTableName).equals(normalizeIdentifier(semanticTableName));
 	}
 
-	private SqlResultResponse buildSuccessResponse(GraphRequest graphRequest, String sql,
+	private SqlResultResponse buildSuccessResponse(GraphRequest graphRequest, String step, String sql,
 			List<SqlResultColumnDTO> columns, List<Map<String, Object>> rows, String message) {
 		return SqlResultResponse.builder()
 			.success(true)
 			.agentId(graphRequest != null ? graphRequest.getAgentId() : null)
 			.threadId(graphRequest != null ? graphRequest.getThreadId() : null)
 			.query(graphRequest != null ? graphRequest.getQuery() : null)
+			.step(step)
 			.sql(sql)
 			.columns(columns != null ? columns : Collections.emptyList())
 			.data(rows != null ? rows : Collections.emptyList())
@@ -301,6 +370,7 @@ public class GraphServiceImpl implements GraphService {
 			.agentId(graphRequest != null ? graphRequest.getAgentId() : null)
 			.threadId(graphRequest != null ? graphRequest.getThreadId() : null)
 			.query(graphRequest != null ? graphRequest.getQuery() : null)
+			.step(null)
 			.sql(sql)
 			.columns(Collections.emptyList())
 			.data(Collections.emptyList())
@@ -332,6 +402,22 @@ public class GraphServiceImpl implements GraphService {
 	private String buildErrorMessage(Exception exception) {
 		String message = exception.getMessage();
 		return StringUtils.hasText(message) ? message : "Execute sql result endpoint failed";
+	}
+
+	private int parseStepNumber(String step) {
+		if (!StringUtils.hasText(step)) {
+			return -1;
+		}
+		Matcher matcher = STEP_PATTERN.matcher(step);
+		if (matcher.find()) {
+			try {
+				return Integer.parseInt(matcher.group(1));
+			}
+			catch (NumberFormatException ignore) {
+				return -1;
+			}
+		}
+		return -1;
 	}
 
 	@Override
