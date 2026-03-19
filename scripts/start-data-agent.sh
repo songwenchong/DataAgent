@@ -36,6 +36,21 @@ require_cmd() {
   fi
 }
 
+check_backend_build_prerequisites() {
+  git_state="$(git rev-parse --is-inside-work-tree 2>/dev/null || printf 'false')"
+  if [ "$git_state" != "true" ]; then
+    fail "Current project is not a Git work tree. Backend startup runs Spotless with ratchetFrom origin/main in pom.xml, so .git must be available from this directory."
+  fi
+
+  if ! git rev-parse --verify origin/main >/dev/null 2>&1; then
+    remotes="$(git remote 2>/dev/null | tr '\n' ' ' | sed 's/[[:space:]]*$//')"
+    if [ -n "$remotes" ]; then
+      fail "Git ref origin/main is missing. Backend startup runs Spotless with ratchetFrom origin/main in pom.xml. Current remotes: $remotes"
+    fi
+    fail "Git ref origin/main is missing. Backend startup runs Spotless with ratchetFrom origin/main in pom.xml."
+  fi
+}
+
 read_file_trimmed() {
   if [ -f "$1" ]; then
     tr -d '[:space:]' <"$1"
@@ -198,6 +213,8 @@ start_backend() {
     log "Backend is not healthy. Starting it in a dedicated terminal."
   fi
 
+  check_backend_build_prerequisites
+
   rm -f "$BACKEND_PID_FILE"
   open_terminal_window "DataAgent Backend" "$PROJECT_ROOT/scripts/run-data-agent-backend.sh"
 
@@ -248,6 +265,7 @@ start_frontend() {
 
 main() {
   require_cmd curl
+  require_cmd git
   require_cmd lsof
   require_cmd npm
   require_cmd osascript
