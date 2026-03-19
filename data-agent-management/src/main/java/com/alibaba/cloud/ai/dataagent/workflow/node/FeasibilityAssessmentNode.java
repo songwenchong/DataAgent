@@ -53,11 +53,14 @@ public class FeasibilityAssessmentNode implements NodeAction {
 		// 获取证据信息
 		String evidence = StateUtil.getStringValue(state, EVIDENCE);
 
+		// 获取语义模型
+		String semanticModel = StateUtil.getStringValue(state, GENEGRATED_SEMANTIC_MODEL_PROMPT, "");
+
 		String multiTurn = StateUtil.getStringValue(state, MULTI_TURN_CONTEXT, "(无)");
 
 		// 构建可行性评估提示词
 		String prompt = PromptHelper.buildFeasibilityAssessmentPrompt(canonicalQuery, recalledSchema, evidence,
-				multiTurn);
+				semanticModel, multiTurn);
 		log.debug("Built feasibility assessment prompt as follows \n {} \n", prompt);
 
 		// 调用LLM进行可行性评估

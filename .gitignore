@@ -31,6 +31,9 @@ target/
 
 # Maven ignore
 .flattened-pom.xml
+.trae/
+.mvn/
+settings.xml
 
 # node_modules
 **/node_modules
@@ -59,3 +62,5 @@ modified_mcp_config.json
 uploads/*
 vectorstore/*
 .java-version
+.tools/
+.run/

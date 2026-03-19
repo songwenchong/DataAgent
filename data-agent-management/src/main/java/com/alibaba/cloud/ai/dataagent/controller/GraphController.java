@@ -43,13 +43,14 @@ public class GraphController {
 
 	private final GraphService graphService;
 
+	//todo song
 	@GetMapping(value = "/stream/search", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
 	public Flux<ServerSentEvent<GraphNodeResponse>> streamSearch(@RequestParam("agentId") String agentId,
 			@RequestParam(value = "threadId", required = false) String threadId, @RequestParam("query") String query,
 			@RequestParam(value = "humanFeedback", required = false) boolean humanFeedback,
 			@RequestParam(value = "humanFeedbackContent", required = false) String humanFeedbackContent,
 			@RequestParam(value = "rejectedPlan", required = false) boolean rejectedPlan,
-			@RequestParam(value = "nl2sqlOnly", required = false) boolean nl2sqlOnly, ServerHttpResponse response) {
+			@RequestParam(value = "nl2sqlOnly", required = false, defaultValue = "false") boolean nl2sqlOnly, ServerHttpResponse response) {
 		// Set SSE-related HTTP headers
 		response.getHeaders().add("Cache-Control", "no-cache");
 		response.getHeaders().add("Connection", "keep-alive");

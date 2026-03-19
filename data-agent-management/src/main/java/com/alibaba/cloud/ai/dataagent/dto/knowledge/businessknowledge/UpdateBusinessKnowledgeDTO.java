@@ -37,6 +37,8 @@ public class UpdateBusinessKnowledgeDTO {
 	// Synonyms, comma separated
 	private String synonyms;
 
+	private Boolean isRecall;
+
 	@NotNull(message = "Agent ID cannot be Null")
 	private Long agentId;
 

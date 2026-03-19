@@ -15,6 +15,7 @@
  */
 package com.alibaba.cloud.ai.dataagent.workflow.dispatcher;
 
+import com.alibaba.cloud.ai.dataagent.dto.prompt.QueryEnhanceOutputDTO;
 import com.alibaba.cloud.ai.dataagent.util.StateUtil;
 import com.alibaba.cloud.ai.graph.OverAllState;
 import com.alibaba.cloud.ai.graph.action.EdgeAction;
@@ -23,6 +24,9 @@ import org.springframework.ai.document.Document;
 
 import java.util.List;
 
+import static com.alibaba.cloud.ai.dataagent.constant.Constant.QUERY_ENHANCE_NODE_OUTPUT;
+import static com.alibaba.cloud.ai.dataagent.constant.Constant.SCHEMA_RECALL_ATTEMPT_COUNT;
+import static com.alibaba.cloud.ai.dataagent.constant.Constant.SCHEMA_RECALL_NODE;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.TABLE_DOCUMENTS_FOR_SCHEMA_OUTPUT;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.TABLE_RELATION_NODE;
 import static com.alibaba.cloud.ai.graph.StateGraph.END;
@@ -33,8 +37,17 @@ public class SchemaRecallDispatcher implements EdgeAction {
 	@Override
 	public String apply(OverAllState state) throws Exception {
 		List<Document> tableDocuments = StateUtil.getDocumentList(state, TABLE_DOCUMENTS_FOR_SCHEMA_OUTPUT);
-		if (tableDocuments != null && !tableDocuments.isEmpty())
+		if (tableDocuments != null && !tableDocuments.isEmpty()) {
 			return TABLE_RELATION_NODE;
+		}
+		QueryEnhanceOutputDTO queryEnhanceOutputDTO = StateUtil.getObjectValue(state, QUERY_ENHANCE_NODE_OUTPUT,
+				QueryEnhanceOutputDTO.class);
+		int recallAttempt = StateUtil.getObjectValue(state, SCHEMA_RECALL_ATTEMPT_COUNT, Integer.class, 0);
+		if (recallAttempt < 1 && queryEnhanceOutputDTO != null && queryEnhanceOutputDTO.getExpandedQueries() != null
+				&& !queryEnhanceOutputDTO.getExpandedQueries().isEmpty()) {
+			log.info("No table documents found in primary recall, routing to schema fallback.");
+			return SCHEMA_RECALL_NODE;
+		}
 		log.info("No table documents found, ending conversation");
 		return END;
 	}

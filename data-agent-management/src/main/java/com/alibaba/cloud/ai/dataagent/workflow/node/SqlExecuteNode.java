@@ -49,8 +49,12 @@ import com.alibaba.cloud.ai.graph.OverAllState;
 import com.alibaba.cloud.ai.graph.action.NodeAction;
 import com.alibaba.cloud.ai.graph.streaming.StreamingOutput;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -84,6 +88,11 @@ public class SqlExecuteNode implements NodeAction {
 	private final JsonParseUtil jsonParseUtil;
 
 	private static final int SAMPLE_DATA_NUMBER = 20;
+
+	private static final String EMPTY_RESULT_MESSAGE = "SQL执行完成，但未查询到符合条件的数据。";
+
+	private static final Pattern PRIMARY_TABLE_PATTERN = Pattern
+		.compile("(?i)\\bFROM\\s+\\[?([A-Za-z0-9_\\u4e00-\\u9fa5]+)\\]?");
 
 	@Override
 	public Map<String, Object> apply(OverAllState state) throws Exception {
@@ -143,11 +152,17 @@ public class SqlExecuteNode implements NodeAction {
 			emitter.next(ChatResponseUtil.createPureResponse(TextType.SQL.getEndSign()));
 			ResultBO resultBO = ResultBO.builder().build();
 
-			try {
-				// Execute SQL query and get results immediately
-				ResultSetBO resultSetBO = dbAccessor.executeSqlAndReturnObject(dbConfig, dbQueryParameter);
-				// 调用大模型获取图表配置信息并填充到ResultSetBO中
-				DisplayStyleBO displayStyleBO = enrichResultSetWithChartConfig(state, resultSetBO);
+				try {
+					// Execute SQL query and get results immediately
+					ResultSetBO resultSetBO = dbAccessor.executeSqlAndReturnObject(dbConfig, dbQueryParameter);
+					SqlRetryDto resultStatus = classifyQueryResult(state, resultSetBO);
+					if (!SqlRetryDto.SqlRetryType.NONE.equals(resultStatus.type())) {
+						result.put(SQL_REGENERATE_REASON, resultStatus);
+						emitter.next(ChatResponseUtil.createResponse(resultStatus.reason()));
+						return;
+					}
+					// 调用大模型获取图表配置信息并填充到ResultSetBO中
+					DisplayStyleBO displayStyleBO = enrichResultSetWithChartConfig(state, resultSetBO);
 				resultBO.setResultSet(resultSetBO);
 				resultBO.setDisplayStyle(displayStyleBO);
 
@@ -179,15 +194,17 @@ public class SqlExecuteNode implements NodeAction {
 				// Store List of SQL query results for use by code execution node
 				// Reset sql generate count retry times when sql execute success
 				result.putAll(Map.of(SQL_EXECUTE_NODE_OUTPUT, updatedResults, SQL_REGENERATE_REASON,
-						SqlRetryDto.empty(), SQL_RESULT_LIST_MEMORY, resultSetBO.getData(), PLAN_CURRENT_STEP,
+						SqlRetryDto.empty(), SQL_RESULT_LIST_MEMORY,
+						buildSqlResultMemory(state, currentStep, sqlQuery, resultSetBO), PLAN_CURRENT_STEP,
 						currentStep + 1, SQL_GENERATE_COUNT, 0));
-			}
-			catch (Exception e) {
-				String errorMessage = e.getMessage();
-				log.error("SQL execution failed - SQL as follows: \n {} \n ", sqlQuery, e);
-				result.put(SQL_REGENERATE_REASON, SqlRetryDto.sqlExecute(errorMessage));
-				emitter.next(ChatResponseUtil.createResponse("SQL执行失败: " + errorMessage));
-			}
+				}
+				catch (Exception e) {
+					String errorMessage = e.getMessage();
+					log.error("SQL execution failed - SQL as follows: \n {} \n ", sqlQuery, e);
+					SqlRetryDto retryStatus = classifyExecutionException(errorMessage);
+					result.put(SQL_REGENERATE_REASON, retryStatus);
+					emitter.next(ChatResponseUtil.createResponse("SQL执行失败: " + retryStatus.reason()));
+				}
 			finally {
 				emitter.complete();
 			}
@@ -198,6 +215,30 @@ public class SqlExecuteNode implements NodeAction {
 		Flux<GraphResponse<StreamingOutput>> generator = FluxUtil.createStreamingGeneratorWithMessages(this.getClass(),
 				state, v -> result, displayFlux);
 		return Map.of(SQL_EXECUTE_NODE_OUTPUT, generator);
+	}
+
+	@SuppressWarnings("unchecked")
+	private List<Map<String, Object>> buildSqlResultMemory(OverAllState state, Integer currentStep, String sqlQuery,
+			ResultSetBO resultSetBO) {
+		List<Map<String, Object>> existingMemory = StateUtil.hasValue(state, SQL_RESULT_LIST_MEMORY)
+				? StateUtil.getListValue(state, SQL_RESULT_LIST_MEMORY) : new ArrayList<>();
+		List<Map<String, Object>> mergedMemory = new ArrayList<>(existingMemory);
+
+		Map<String, Object> currentStepResult = new HashMap<>();
+		currentStepResult.put("step", "step_" + currentStep);
+		currentStepResult.put("sql_query", sqlQuery);
+		currentStepResult.put("table_name", extractPrimaryTableName(sqlQuery));
+		currentStepResult.put("data", resultSetBO.getData());
+		mergedMemory.add(currentStepResult);
+		return mergedMemory;
+	}
+
+	private String extractPrimaryTableName(String sqlQuery) {
+		if (StringUtils.isBlank(sqlQuery)) {
+			return "";
+		}
+		Matcher matcher = PRIMARY_TABLE_PATTERN.matcher(sqlQuery);
+		return matcher.find() ? matcher.group(1) : "";
 	}
 
 	/**
@@ -264,6 +305,50 @@ public class SqlExecuteNode implements NodeAction {
 			// 不抛出异常，允许流程继续执行
 		}
 		return null;
+	}
+
+	private SqlRetryDto classifyQueryResult(OverAllState state, ResultSetBO resultSetBO) {
+		if (resultSetBO == null || resultSetBO.getData() == null || resultSetBO.getData().isEmpty()) {
+			if (isSpatialQuery(state)) {
+				return SqlRetryDto.noTargetFound("未找到符合条件的空间目标对象，流程结束。");
+			}
+			return SqlRetryDto.emptyResult(EMPTY_RESULT_MESSAGE);
+		}
+		return SqlRetryDto.empty();
+	}
+
+	private SqlRetryDto classifyExecutionException(String errorMessage) {
+		String normalized = errorMessage == null ? "" : errorMessage.toLowerCase();
+		if (normalized.contains("unknown column") || normalized.contains("invalid column")
+				|| normalized.contains("column") && normalized.contains("not found")
+				|| normalized.contains("列名") && normalized.contains("无效")
+				|| normalized.contains("对象名") && normalized.contains("无效")
+				|| normalized.contains("must declare the scalar variable")
+				|| normalized.contains("parameter") && normalized.contains("not supplied")
+				|| normalized.contains("参数") && normalized.contains("未提供")
+				|| normalized.contains("syntax")
+				|| normalized.contains("grammar") || normalized.contains("near ")
+				|| normalized.contains("function") && normalized.contains("not found")
+				|| normalized.contains("invalid object name")) {
+			return SqlRetryDto.retryableSql(errorMessage);
+		}
+		if (normalized.contains("permission") || normalized.contains("denied") || normalized.contains("login failed")
+				|| normalized.contains("connection") || normalized.contains("timeout")
+				|| normalized.contains("network")) {
+			return SqlRetryDto.nonRetryableSql(errorMessage);
+		}
+		return SqlRetryDto.nonRetryableSql(errorMessage);
+	}
+
+	private boolean isSpatialQuery(OverAllState state) {
+		String canonicalQuery = StateUtil.getCanonicalQuery(state);
+		if (canonicalQuery == null) {
+			return false;
+		}
+		String normalized = canonicalQuery.toLowerCase();
+		return normalized.contains("空间") || normalized.contains("坐标") || normalized.contains("经度")
+				|| normalized.contains("纬度") || normalized.contains("geometry") || normalized.contains("geography")
+				|| normalized.contains("spatial") || normalized.contains("附近");
 	}
 
 }

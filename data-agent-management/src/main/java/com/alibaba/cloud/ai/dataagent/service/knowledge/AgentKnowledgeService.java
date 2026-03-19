@@ -35,6 +35,8 @@ public interface AgentKnowledgeService {
 
 	AgentKnowledgeVO updateKnowledgeRecallStatus(Integer id, Boolean recalled);
 
+	void refreshAllKnowledgeToVectorStore(String agentId) throws Exception;
+
 	void retryEmbedding(Integer id);
 
 }

@@ -15,6 +15,7 @@
  */
 package com.alibaba.cloud.ai.dataagent.service.knowledge;
 
+import com.alibaba.cloud.ai.dataagent.constant.DocumentMetadataConstant;
 import com.alibaba.cloud.ai.dataagent.enums.EmbeddingStatus;
 import com.alibaba.cloud.ai.dataagent.enums.KnowledgeType;
 import com.alibaba.cloud.ai.dataagent.converter.AgentKnowledgeConverter;
@@ -27,6 +28,7 @@ import com.alibaba.cloud.ai.dataagent.event.AgentKnowledgeDeletionEvent;
 import com.alibaba.cloud.ai.dataagent.event.AgentKnowledgeEmbeddingEvent;
 import com.alibaba.cloud.ai.dataagent.mapper.AgentKnowledgeMapper;
 import com.alibaba.cloud.ai.dataagent.service.file.FileStorageService;
+import com.alibaba.cloud.ai.dataagent.service.vectorstore.AgentVectorStoreService;
 import com.alibaba.cloud.ai.dataagent.vo.AgentKnowledgeVO;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -52,6 +54,10 @@ public class AgentKnowledgeServiceImpl implements AgentKnowledgeService {
 	private final AgentKnowledgeConverter agentKnowledgeConverter;
 
 	private final ApplicationEventPublisher eventPublisher;
+
+	private final AgentKnowledgeResourceManager agentKnowledgeResourceManager;
+
+	private final AgentVectorStoreService agentVectorStoreService;
 
 	@Override
 	public AgentKnowledgeVO getKnowledgeById(Integer id) {
@@ -196,6 +202,38 @@ public class AgentKnowledgeServiceImpl implements AgentKnowledgeService {
 			throw new RuntimeException("Failed to update knowledge in database.");
 		}
 		return agentKnowledgeConverter.toVo(knowledge);
+	}
+
+	@Override
+	@Transactional
+	public void refreshAllKnowledgeToVectorStore(String agentId) throws Exception {
+		agentVectorStoreService.deleteDocumentsByVectorType(agentId, DocumentMetadataConstant.AGENT_KNOWLEDGE);
+
+		List<Integer> recalledIds = agentKnowledgeMapper.selectRecalledKnowledgeIds(Integer.valueOf(agentId));
+		for (Integer recalledId : recalledIds) {
+			AgentKnowledge knowledge = agentKnowledgeMapper.selectById(recalledId);
+			if (knowledge == null || knowledge.getIsDeleted() != null && knowledge.getIsDeleted() == 1) {
+				continue;
+			}
+
+			try {
+				knowledge.setEmbeddingStatus(EmbeddingStatus.PROCESSING);
+				knowledge.setErrorMsg("");
+				agentKnowledgeMapper.update(knowledge);
+
+				agentKnowledgeResourceManager.doEmbedingToVectorStore(knowledge);
+
+				knowledge.setEmbeddingStatus(EmbeddingStatus.COMPLETED);
+				knowledge.setErrorMsg(null);
+				agentKnowledgeMapper.update(knowledge);
+			}
+			catch (Exception e) {
+				log.error("Failed to refresh vector store for agent knowledge id: {}", recalledId, e);
+				knowledge.setEmbeddingStatus(EmbeddingStatus.FAILED);
+				knowledge.setErrorMsg(e.getMessage());
+				agentKnowledgeMapper.update(knowledge);
+			}
+		}
 	}
 
 	@Override

@@ -156,6 +156,15 @@
           placeholder="请输入同义词，多个同义词用逗号分隔"
         />
       </el-form-item>
+
+      <el-form-item label="参与召回" prop="isRecall">
+        <el-switch
+          v-model="knowledgeForm.isRecall"
+          inline-prompt
+          active-text="是"
+          inactive-text="否"
+        />
+      </el-form-item>
     </el-form>
 
     <template #footer>
@@ -205,7 +214,7 @@
         businessTerm: '',
         description: '',
         synonyms: '',
-        isRecall: false,
+        isRecall: true,
       } as BusinessKnowledgeVO);
 
       const currentEditId: Ref<number | null> = ref(null);
@@ -215,6 +224,14 @@
 
       const openCreateDialog = () => {
         isEdit.value = false;
+        currentEditId.value = null;
+        knowledgeForm.value = {
+          businessTerm: '',
+          description: '',
+          synonyms: '',
+          isRecall: true,
+          agentId: props.agentId,
+        } as BusinessKnowledgeVO;
         dialogVisible.value = true;
       };
 
@@ -299,6 +316,7 @@
               businessTerm: knowledgeForm.value.businessTerm,
               description: knowledgeForm.value.description,
               synonyms: knowledgeForm.value.synonyms,
+              isRecall: knowledgeForm.value.isRecall,
               agentId: props.agentId,
             };
 

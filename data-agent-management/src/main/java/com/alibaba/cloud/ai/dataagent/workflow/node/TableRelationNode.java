@@ -24,7 +24,6 @@ import static com.alibaba.cloud.ai.dataagent.constant.Constant.SQL_GENERATE_SCHE
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.TABLE_DOCUMENTS_FOR_SCHEMA_OUTPUT;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.TABLE_RELATION_EXCEPTION_OUTPUT;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.TABLE_RELATION_OUTPUT;
-import static com.alibaba.cloud.ai.dataagent.constant.Constant.TABLE_RELATION_RETRY_COUNT;
 import static com.alibaba.cloud.ai.dataagent.prompt.PromptHelper.buildSemanticModelPrompt;
 
 import com.alibaba.cloud.ai.dataagent.bo.DbConfigBO;
@@ -109,15 +108,18 @@ public class TableRelationNode implements NodeAction {
 
 		SchemaDTO initialSchema = buildInitialSchema(agentIdStr, columnDocuments, tableDocuments, agentDbConfig,
 				logicalForeignKeys);
+		List<String> recalledTableNames = initialSchema.getTable().stream().map(TableDTO::getName).toList();
+		String candidateSemanticModelPrompt = buildSemanticModelPrompt(
+				semanticModelService.getByAgentIdAndTableNames(Long.valueOf(agentIdStr), recalledTableNames));
 
 		Map<String, Object> resultMap = new HashMap<>();
 		// 将 DB_DIALECT_TYPE 添加到 resultMap，确保它在 generator 完成时被写入 state
 		resultMap.put(DB_DIALECT_TYPE, agentDbConfig.getDialectType());
-		resultMap.put(TABLE_RELATION_RETRY_COUNT, 0);
 		resultMap.put(TABLE_RELATION_EXCEPTION_OUTPUT, "");
+		resultMap.put(GENEGRATED_SEMANTIC_MODEL_PROMPT, candidateSemanticModelPrompt);
 
-		Flux<ChatResponse> schemaFlux = processSchemaSelection(initialSchema, canonicalQuery, evidence, state,
-				agentDbConfig, result -> {
+		Flux<ChatResponse> schemaFlux = processSchemaSelection(initialSchema, canonicalQuery, evidence,
+				candidateSemanticModelPrompt, state, agentDbConfig, result -> {
 					log.info("[{}] Schema processing result: {}", this.getClass().getSimpleName(), result);
 					resultMap.put(TABLE_RELATION_OUTPUT, result);
 
@@ -155,7 +157,7 @@ public class TableRelationNode implements NodeAction {
 		// DB_DIALECT_TYPE must be returned directly so it's available in state for
 		// subsequent nodes
 		return Map.of(TABLE_RELATION_OUTPUT, generator, DB_DIALECT_TYPE, agentDbConfig.getDialectType(),
-				TABLE_RELATION_RETRY_COUNT, 0, TABLE_RELATION_EXCEPTION_OUTPUT, "");
+				TABLE_RELATION_EXCEPTION_OUTPUT, "", GENEGRATED_SEMANTIC_MODEL_PROMPT, candidateSemanticModelPrompt);
 	}
 
 	/** Builds initial schema from column and table documents. */
@@ -187,18 +189,20 @@ public class TableRelationNode implements NodeAction {
 
 	/** Processes schema selection based on input, evidence, and optional advice. */
 	private Flux<ChatResponse> processSchemaSelection(SchemaDTO schemaDTO, String input, String evidence,
-			OverAllState state, DbConfigBO agentDbConfig, Consumer<SchemaDTO> dtoConsumer) {
+			String semanticModelPrompt, OverAllState state, DbConfigBO agentDbConfig, Consumer<SchemaDTO> dtoConsumer) {
 		String schemaAdvice = StateUtil.getStringValue(state, SQL_GENERATE_SCHEMA_MISSING_ADVICE, null);
 
 		Flux<ChatResponse> schemaFlux;
 		if (schemaAdvice != null) {
 			log.info("[{}] Processing with schema supplement advice: {}", this.getClass().getSimpleName(),
 					schemaAdvice);
-			schemaFlux = nl2SqlService.fineSelect(schemaDTO, input, evidence, schemaAdvice, agentDbConfig, dtoConsumer);
+			schemaFlux = nl2SqlService.fineSelect(schemaDTO, input, evidence, semanticModelPrompt, schemaAdvice,
+					agentDbConfig, dtoConsumer);
 		}
 		else {
 			log.info("[{}] Executing regular schema selection", this.getClass().getSimpleName());
-			schemaFlux = nl2SqlService.fineSelect(schemaDTO, input, evidence, null, agentDbConfig, dtoConsumer);
+			schemaFlux = nl2SqlService.fineSelect(schemaDTO, input, evidence, semanticModelPrompt, null, agentDbConfig,
+					dtoConsumer);
 		}
 		return Flux
 			.just(ChatResponseUtil.createResponse("正在选择合适的数据表...\n"),

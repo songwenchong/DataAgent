@@ -39,13 +39,22 @@ import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.embedding.BatchingStrategy;
-import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.filter.Filter;
 import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.Assert;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
@@ -63,6 +72,10 @@ import static com.alibaba.cloud.ai.dataagent.util.DocumentConverterUtil.convertT
 @Service
 @AllArgsConstructor
 public class SchemaServiceImpl implements SchemaService {
+
+	private static final int MIN_KEYWORD_SCAN_LIMIT = 100;
+
+	private static final Pattern IDENTIFIER_PATTERN = Pattern.compile("\\b[A-Za-z_][A-Za-z0-9_]{1,}\\b");
 
 	private final ExecutorService dbOperationExecutor;
 
@@ -247,13 +260,14 @@ public class SchemaServiceImpl implements SchemaService {
 	}
 
 	protected void storeSchemaDocuments(Integer datasourceId, List<Document> columns, List<Document> tables) {
+		// 优先写入表文档，避免初始化过程中 SchemaRecall 长时间拿不到任何表。
+		List<List<Document>> tableBatches = batchingStrategy.batch(tables);
+		for (List<Document> batch : tableBatches) {
+			agentVectorStoreService.addDocuments(datasourceId.toString(), batch);
+		}
 		// 串行去批写入，并行流的时候有API限速了
 		List<List<Document>> columnBatches = batchingStrategy.batch(columns);
 		for (List<Document> batch : columnBatches) {
-			agentVectorStoreService.addDocuments(datasourceId.toString(), batch);
-		}
-		List<List<Document>> tableBatches = batchingStrategy.batch(tables);
-		for (List<Document> batch : tableBatches) {
 			agentVectorStoreService.addDocuments(datasourceId.toString(), batch);
 		}
 
@@ -298,15 +312,84 @@ public class SchemaServiceImpl implements SchemaService {
 
 		Filter.Expression filterExpression = DynamicFilterService.combineWithAnd(conditions);
 
-		// 执行向量检索
-		SearchRequest searchRequest = SearchRequest.builder()
-			.query(query)
-			.topK(tableTopK)
-			.similarityThreshold(tableThreshold)
-			.filterExpression(filterExpression)
-			.build();
+		List<Document> exactMatches = findExactTableMatches(datasourceId, query);
+		List<Document> keywordMatches = findKeywordTableMatches(query, filterExpression, tableTopK);
+		List<Document> semanticMatches = agentVectorStoreService.searchByFilter(query, filterExpression, tableTopK,
+				tableThreshold);
 
-		return agentVectorStoreService.getDocumentsOnlyByFilter(filterExpression, tableTopK);
+		return mergeAndLimitDocuments(tableTopK, exactMatches, keywordMatches, semanticMatches);
+	}
+
+	private List<Document> findExactTableMatches(Integer datasourceId, String query) {
+		Set<String> candidateTableNames = extractIdentifierCandidates(query);
+		if (candidateTableNames.isEmpty()) {
+			return Collections.emptyList();
+		}
+		return getTableDocuments(datasourceId, new ArrayList<>(candidateTableNames));
+	}
+
+	private List<Document> findKeywordTableMatches(String query, Filter.Expression filterExpression, int tableTopK) {
+		Set<String> keywords = extractKeywordCandidates(query);
+		if (keywords.isEmpty()) {
+			return Collections.emptyList();
+		}
+		int scanLimit = Math.max(tableTopK * 5, MIN_KEYWORD_SCAN_LIMIT);
+		List<Document> candidates = agentVectorStoreService.getDocumentsOnlyByFilter(filterExpression, scanLimit);
+		return candidates.stream().filter(document -> matchesAnyKeyword(document, keywords)).limit(tableTopK).toList();
+	}
+
+	private List<Document> mergeAndLimitDocuments(int tableTopK, List<Document> exactMatches, List<Document> keyword,
+			List<Document> semantic) {
+		LinkedHashMap<String, Document> merged = new LinkedHashMap<>();
+		List<List<Document>> groups = List.of(exactMatches, keyword, semantic);
+		for (List<Document> group : groups) {
+			for (Document document : group) {
+				if (document == null || document.getId() == null) {
+					continue;
+				}
+				merged.putIfAbsent(document.getId(), document);
+				if (merged.size() >= tableTopK) {
+					return new ArrayList<>(merged.values());
+				}
+			}
+		}
+		return new ArrayList<>(merged.values());
+	}
+
+	private Set<String> extractIdentifierCandidates(String query) {
+		if (StringUtils.isBlank(query)) {
+			return Collections.emptySet();
+		}
+		Set<String> identifiers = new LinkedHashSet<>();
+		Matcher matcher = IDENTIFIER_PATTERN.matcher(query);
+		while (matcher.find()) {
+			String candidate = matcher.group();
+			if (candidate.length() >= 2) {
+				identifiers.add(candidate);
+			}
+		}
+		return identifiers;
+	}
+
+	private Set<String> extractKeywordCandidates(String query) {
+		if (StringUtils.isBlank(query)) {
+			return Collections.emptySet();
+		}
+		return extractIdentifierCandidates(query).stream()
+			.map(String::toLowerCase)
+			.collect(Collectors.toCollection(LinkedHashSet::new));
+	}
+
+	private boolean matchesAnyKeyword(Document document, Set<String> keywords) {
+		Map<String, Object> metadata = document.getMetadata();
+		String name = Objects.toString(metadata.get(DocumentMetadataConstant.NAME), "").toLowerCase();
+		String description = Objects.toString(metadata.get("description"), "").toLowerCase();
+		for (String keyword : keywords) {
+			if (name.contains(keyword) || description.contains(keyword)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private List<String> getMissingTableNamesWithForeignKeySet(List<Document> tableDocuments,

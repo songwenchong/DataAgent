@@ -25,6 +25,7 @@ import com.alibaba.cloud.ai.dataagent.properties.DataAgentProperties;
 import com.alibaba.cloud.ai.dataagent.dto.datasource.SqlRetryDto;
 import com.alibaba.cloud.ai.dataagent.dto.prompt.SqlGenerationDTO;
 import com.alibaba.cloud.ai.dataagent.dto.schema.SchemaDTO;
+import com.alibaba.cloud.ai.dataagent.prompt.PromptHelper;
 import com.alibaba.cloud.ai.dataagent.service.nl2sql.Nl2SqlService;
 import com.alibaba.cloud.ai.graph.GraphResponse;
 import com.alibaba.cloud.ai.graph.OverAllState;
@@ -90,12 +91,12 @@ public class SqlGenerateNode implements NodeAction {
 		SqlRetryDto retryDto = StateUtil.getObjectValue(state, SQL_REGENERATE_REASON, SqlRetryDto.class,
 				SqlRetryDto.empty());
 
-		if (retryDto.sqlExecuteFail()) {
+		if (retryDto.isRetryableSqlError()) {
 			displayMessage = "检测到SQL执行异常，开始重新生成SQL...";
 			sqlFlux = handleRetryGenerateSql(state, StateUtil.getStringValue(state, SQL_GENERATE_OUTPUT, ""),
 					retryDto.reason(), promptForSql);
 		}
-		else if (retryDto.semanticFail()) {
+		else if (retryDto.isSemanticValidationFail()) {
 			displayMessage = "语义一致性校验未通过，开始重新生成SQL...";
 			sqlFlux = handleRetryGenerateSql(state, StateUtil.getStringValue(state, SQL_GENERATE_OUTPUT, ""),
 					retryDto.reason(), promptForSql);
@@ -134,6 +135,10 @@ public class SqlGenerateNode implements NodeAction {
 		SchemaDTO schemaDTO = StateUtil.getObjectValue(state, TABLE_RELATION_OUTPUT, SchemaDTO.class);
 		String userQuery = StateUtil.getCanonicalQuery(state);
 		String dialect = StateUtil.getStringValue(state, DB_DIALECT_TYPE);
+		String semanticModel = StateUtil.getStringValue(state, GENEGRATED_SEMANTIC_MODEL_PROMPT, "");
+		String previousStepResults = PromptHelper.buildPreviousStepResultsPrompt(
+				StateUtil.hasValue(state, SQL_RESULT_LIST_MEMORY) ? StateUtil.getListValue(state, SQL_RESULT_LIST_MEMORY)
+						: null);
 
 		SqlGenerationDTO sqlGenerationDTO = SqlGenerationDTO.builder()
 			.evidence(evidence)
@@ -143,6 +148,8 @@ public class SqlGenerateNode implements NodeAction {
 			.exceptionMessage(errorMsg)
 			.executionDescription(executionDescription)
 			.dialect(dialect)
+			.semanticModel(semanticModel)
+			.previousStepResults(previousStepResults)
 			.build();
 
 		return nl2SqlService.generateSql(sqlGenerationDTO);

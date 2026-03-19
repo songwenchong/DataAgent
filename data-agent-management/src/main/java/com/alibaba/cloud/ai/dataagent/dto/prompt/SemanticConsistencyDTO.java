@@ -36,4 +36,6 @@ public class SemanticConsistencyDTO {
 
 	private String evidence;
 
+	private String previousStepResults;
+
 }

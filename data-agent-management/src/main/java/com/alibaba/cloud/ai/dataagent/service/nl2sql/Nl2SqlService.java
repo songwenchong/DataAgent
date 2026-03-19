@@ -31,7 +31,7 @@ public interface Nl2SqlService {
 
 	Flux<String> generateSql(SqlGenerationDTO sqlGenerationDTO);
 
-	Flux<ChatResponse> fineSelect(SchemaDTO schemaDTO, String query, String evidence,
+	Flux<ChatResponse> fineSelect(SchemaDTO schemaDTO, String query, String evidence, String semanticModel,
 			String sqlGenerateSchemaMissingAdvice, DbConfigBO specificDbConfig, Consumer<SchemaDTO> dtoConsumer);
 
 	default String sqlTrim(String sql) {

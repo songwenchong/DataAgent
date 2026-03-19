@@ -40,7 +40,6 @@ class TableRelationDispatcherTest {
 		// Initialize state
 		state = new OverAllState();
 		state.registerKeyAndStrategy(TABLE_RELATION_EXCEPTION_OUTPUT, new ReplaceStrategy());
-		state.registerKeyAndStrategy(TABLE_RELATION_RETRY_COUNT, new ReplaceStrategy());
 		state.registerKeyAndStrategy(TABLE_RELATION_OUTPUT, new ReplaceStrategy());
 	}
 
@@ -57,45 +56,6 @@ class TableRelationDispatcherTest {
 	}
 
 	@Test
-	void testRetryableError_WithinRetryLimit() throws Exception {
-		// Set retryable error, retry count not reached limit
-		state.updateState(Map.of(TABLE_RELATION_EXCEPTION_OUTPUT, "RETRYABLE: Connection timeout",
-				TABLE_RELATION_RETRY_COUNT, 2));
-
-		// execute test
-		String result = dispatcher.apply(state);
-
-		// Verify should retry
-		assertEquals(TABLE_RELATION_NODE, result);
-	}
-
-	@Test
-	void testRetryableError_ExceedsRetryLimit() throws Exception {
-		// Set retryable error, but retry count reached limit
-		state.updateState(Map.of(TABLE_RELATION_EXCEPTION_OUTPUT, "RETRYABLE: Connection timeout",
-				TABLE_RELATION_RETRY_COUNT, 3));
-
-		// execute test
-		String result = dispatcher.apply(state);
-
-		// Verify should terminate
-		assertEquals(END, result);
-	}
-
-	@Test
-	void testNonRetryableError() throws Exception {
-		// Set non-retryable error
-		state.updateState(Map.of(TABLE_RELATION_EXCEPTION_OUTPUT,
-				"NON_RETRYABLE: Feature not supported: converting to class boolean", TABLE_RELATION_RETRY_COUNT, 1));
-
-		// execute test
-		String result = dispatcher.apply(state);
-
-		// Verify should terminate
-		assertEquals(END, result);
-	}
-
-	@Test
 	void testNoOutput_NoError() throws Exception {
 		// Set no output no error state
 		state.updateState(Map.of());
@@ -108,80 +68,21 @@ class TableRelationDispatcherTest {
 	}
 
 	@Test
-	void testRetryCountBoundary() throws Exception {
-		// Test retry count boundary case
-		state.updateState(
-				Map.of(TABLE_RELATION_EXCEPTION_OUTPUT, "RETRYABLE: Network error", TABLE_RELATION_RETRY_COUNT, 2 // Just
-																													// within
-																													// the
-																													// limit
-				));
-
-		String result = dispatcher.apply(state);
-		assertEquals(TABLE_RELATION_NODE, result);
-
-		// Test reaching the limit
-		state.updateState(
-				Map.of(TABLE_RELATION_EXCEPTION_OUTPUT, "RETRYABLE: Network error", TABLE_RELATION_RETRY_COUNT, 3 // 达到限制
-				));
-
-		result = dispatcher.apply(state);
-		assertEquals(END, result);
-	}
-
-	@Test
-	void testMixedErrorTypes() throws Exception {
-		// Test handling of different error types
-		String[] retryableErrors = { "RETRYABLE: timeout", "RETRYABLE: connection" };
-
-		String[] nonRetryableErrors = { "NON_RETRYABLE: boolean conversion", "NON_RETRYABLE: configuration error" };
-
-		// Test retryable errors
-		for (String errorType : retryableErrors) {
-			state.updateState(Map.of(TABLE_RELATION_EXCEPTION_OUTPUT, errorType, TABLE_RELATION_RETRY_COUNT, 1));
-
-			String result = dispatcher.apply(state);
-			assertEquals(TABLE_RELATION_NODE, result, "Should retry for: " + errorType);
-		}
-
-		// Test non-retryable errors
-		for (String errorType : nonRetryableErrors) {
-			state.updateState(Map.of(TABLE_RELATION_EXCEPTION_OUTPUT, errorType, TABLE_RELATION_RETRY_COUNT, 1));
-
-			String result = dispatcher.apply(state);
-			assertEquals(END, result, "Should end for: " + errorType);
-		}
-	}
-
-	@Test
-	void testZeroRetryCount() throws Exception {
-		// Test case with retry count 0
-		state.updateState(Map.of(TABLE_RELATION_EXCEPTION_OUTPUT, "RETRYABLE: Connection timeout",
-				TABLE_RELATION_RETRY_COUNT, 0));
-
-		String result = dispatcher.apply(state);
-		assertEquals(TABLE_RELATION_NODE, result);
-	}
-
-	@Test
-	void testNullRetryCount() throws Exception {
-		// Test case with null retry count (should be treated as 0)
-		state.updateState(Map.of(TABLE_RELATION_EXCEPTION_OUTPUT, "RETRYABLE: Connection timeout"
-		// 不设置 TABLE_RELATION_RETRY_COUNT
-		));
-
-		String result = dispatcher.apply(state);
-		assertEquals(TABLE_RELATION_NODE, result);
-	}
-
-	@Test
 	void testSuccessWithPreviousError() throws Exception {
 		// Test case with previous error but now successful
-		state.updateState(Map.of(TABLE_RELATION_OUTPUT, "success_output", TABLE_RELATION_EXCEPTION_OUTPUT, "", // 错误已清除
-				TABLE_RELATION_RETRY_COUNT, 0));
+		state.updateState(Map.of(TABLE_RELATION_OUTPUT, "success_output", TABLE_RELATION_EXCEPTION_OUTPUT, ""));
 
 		String result = dispatcher.apply(state);
 		assertEquals(FEASIBILITY_ASSESSMENT_NODE, result);
+	}
+
+	@Test
+	void testErrorAlwaysEnds() throws Exception {
+		state.updateState(Map.of(TABLE_RELATION_EXCEPTION_OUTPUT, "RETRYABLE: Connection timeout"));
+
+		String result = dispatcher.apply(state);
+
+		assertEquals(END, result);
 	}
 
 }

@@ -20,6 +20,8 @@ import com.alibaba.cloud.ai.dataagent.bo.DbConfigBO;
 import com.alibaba.cloud.ai.dataagent.entity.Datasource;
 import org.springframework.util.StringUtils;
 
+import java.util.Objects;
+
 public interface DatasourceTypeHandler {
 
 	String typeName();
@@ -53,6 +55,9 @@ public interface DatasourceTypeHandler {
 	}
 
 	default String extractSchemaName(Datasource datasource) {
+		if (Objects.equals("sqlserver", datasource.getType())){
+			return "dbo";
+		}
 		return datasource.getDatabaseName();
 	}
 

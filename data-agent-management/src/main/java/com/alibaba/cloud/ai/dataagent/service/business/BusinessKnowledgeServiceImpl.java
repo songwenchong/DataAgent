@@ -126,6 +126,8 @@ public class BusinessKnowledgeServiceImpl implements BusinessKnowledgeService {
 		knowledge.setDescription(knowledgeDTO.getDescription());
 		if (StringUtils.hasText(knowledgeDTO.getSynonyms()))
 			knowledge.setSynonyms(knowledgeDTO.getSynonyms());
+		if (knowledgeDTO.getIsRecall() != null)
+			knowledge.setIsRecall(knowledgeDTO.getIsRecall() ? 1 : 0);
 
 		// 设置初始状态为处理中
 		knowledge.setEmbeddingStatus(EmbeddingStatus.PROCESSING);

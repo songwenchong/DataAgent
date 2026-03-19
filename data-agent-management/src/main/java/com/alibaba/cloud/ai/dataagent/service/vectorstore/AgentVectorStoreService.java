@@ -45,6 +45,8 @@ public interface AgentVectorStoreService {
 	// 通过元数据过滤精确查找
 	List<Document> getDocumentsOnlyByFilter(Filter.Expression filterExpression, Integer topK);
 
+	List<Document> searchByFilter(String query, Filter.Expression filterExpression, Integer topK, double threshold);
+
 	boolean hasDocuments(String agentId);
 
 	void addDocuments(String agentId, List<Document> documents);

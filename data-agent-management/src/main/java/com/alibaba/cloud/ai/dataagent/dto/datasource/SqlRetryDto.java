@@ -15,18 +15,49 @@
  */
 package com.alibaba.cloud.ai.dataagent.dto.datasource;
 
-public record SqlRetryDto(String reason, boolean semanticFail, boolean sqlExecuteFail) {
+public record SqlRetryDto(String reason, SqlRetryType type) {
 
-	public static SqlRetryDto semantic(String reason) {
-		return new SqlRetryDto(reason, true, false);
+	public enum SqlRetryType {
+
+		RETRYABLE_SQL_ERROR, NON_RETRYABLE_SQL_ERROR, NO_TARGET_FOUND, EMPTY_RESULT, SEMANTIC_VALIDATION_FAIL, NONE
+
 	}
 
-	public static SqlRetryDto sqlExecute(String reason) {
-		return new SqlRetryDto(reason, false, true);
+	public static SqlRetryDto semantic(String reason) {
+		return new SqlRetryDto(reason, SqlRetryType.SEMANTIC_VALIDATION_FAIL);
+	}
+
+	public static SqlRetryDto retryableSql(String reason) {
+		return new SqlRetryDto(reason, SqlRetryType.RETRYABLE_SQL_ERROR);
+	}
+
+	public static SqlRetryDto nonRetryableSql(String reason) {
+		return new SqlRetryDto(reason, SqlRetryType.NON_RETRYABLE_SQL_ERROR);
+	}
+
+	public static SqlRetryDto noTargetFound(String reason) {
+		return new SqlRetryDto(reason, SqlRetryType.NO_TARGET_FOUND);
+	}
+
+	public static SqlRetryDto emptyResult(String reason) {
+		return new SqlRetryDto(reason, SqlRetryType.EMPTY_RESULT);
 	}
 
 	public static SqlRetryDto empty() {
-		return new SqlRetryDto("", false, false);
+		return new SqlRetryDto("", SqlRetryType.NONE);
+	}
+
+	public boolean isSemanticValidationFail() {
+		return type == SqlRetryType.SEMANTIC_VALIDATION_FAIL;
+	}
+
+	public boolean isRetryableSqlError() {
+		return type == SqlRetryType.RETRYABLE_SQL_ERROR;
+	}
+
+	public boolean isTerminalSqlState() {
+		return type == SqlRetryType.NON_RETRYABLE_SQL_ERROR || type == SqlRetryType.NO_TARGET_FOUND
+				|| type == SqlRetryType.EMPTY_RESULT;
 	}
 
 }

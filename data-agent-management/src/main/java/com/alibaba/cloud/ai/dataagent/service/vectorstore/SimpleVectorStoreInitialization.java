@@ -22,6 +22,7 @@ import org.springframework.ai.vectorstore.SimpleVectorStore;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.core.Ordered;
 
 import java.io.File;
 import java.nio.file.Files;
@@ -33,7 +34,7 @@ import java.nio.file.Paths;
  */
 @Slf4j
 @RequiredArgsConstructor
-public class SimpleVectorStoreInitialization implements ApplicationRunner, DisposableBean {
+public class SimpleVectorStoreInitialization implements ApplicationRunner, DisposableBean, Ordered {
 
 	private final SimpleVectorStore vectorStore;
 
@@ -81,6 +82,11 @@ public class SimpleVectorStoreInitialization implements ApplicationRunner, Dispo
 	@Override
 	public void destroy() {
 		this.save();
+	}
+
+	@Override
+	public int getOrder() {
+		return Ordered.HIGHEST_PRECEDENCE;
 	}
 
 }

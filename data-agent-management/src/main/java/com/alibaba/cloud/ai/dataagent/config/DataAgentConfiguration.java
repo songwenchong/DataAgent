@@ -137,10 +137,11 @@ public class DataAgentConfiguration implements DisposableBean {
 			// schema recall节点输出
 			keyStrategyHashMap.put(TABLE_DOCUMENTS_FOR_SCHEMA_OUTPUT, KeyStrategy.REPLACE);
 			keyStrategyHashMap.put(COLUMN_DOCUMENTS__FOR_SCHEMA_OUTPUT, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(SCHEMA_RECALL_ATTEMPT_COUNT, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(SCHEMA_RECALL_FAILURE_REASON, KeyStrategy.REPLACE);
 			// table relation节点输出
 			keyStrategyHashMap.put(TABLE_RELATION_OUTPUT, KeyStrategy.REPLACE);
 			keyStrategyHashMap.put(TABLE_RELATION_EXCEPTION_OUTPUT, KeyStrategy.REPLACE);
-			keyStrategyHashMap.put(TABLE_RELATION_RETRY_COUNT, KeyStrategy.REPLACE);
 			keyStrategyHashMap.put(DB_DIALECT_TYPE, KeyStrategy.REPLACE);
 			// Feasibility Assessment 节点输出
 			keyStrategyHashMap.put(FEASIBILITY_ASSESSMENT_NODE_OUTPUT, KeyStrategy.REPLACE);
@@ -206,11 +207,11 @@ public class DataAgentConfiguration implements DisposableBean {
 			.addConditionalEdges(QUERY_ENHANCE_NODE, edge_async(new QueryEnhanceDispatcher()),
 					Map.of(SCHEMA_RECALL_NODE, SCHEMA_RECALL_NODE, END, END))
 			.addConditionalEdges(SCHEMA_RECALL_NODE, edge_async(new SchemaRecallDispatcher()),
-					Map.of(TABLE_RELATION_NODE, TABLE_RELATION_NODE, END, END))
+					Map.of(TABLE_RELATION_NODE, TABLE_RELATION_NODE, SCHEMA_RECALL_NODE, SCHEMA_RECALL_NODE, END,
+							END))
 
 			.addConditionalEdges(TABLE_RELATION_NODE, edge_async(new TableRelationDispatcher()),
-					Map.of(FEASIBILITY_ASSESSMENT_NODE, FEASIBILITY_ASSESSMENT_NODE, END, END, TABLE_RELATION_NODE,
-							TABLE_RELATION_NODE)) // retry
+					Map.of(FEASIBILITY_ASSESSMENT_NODE, FEASIBILITY_ASSESSMENT_NODE, END, END))
 			.addConditionalEdges(FEASIBILITY_ASSESSMENT_NODE, edge_async(new FeasibilityAssessmentDispatcher()),
 					Map.of(PLANNER_NODE, PLANNER_NODE, END, END))
 

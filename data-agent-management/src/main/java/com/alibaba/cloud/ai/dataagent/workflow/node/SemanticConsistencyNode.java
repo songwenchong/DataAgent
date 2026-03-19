@@ -16,6 +16,7 @@
 package com.alibaba.cloud.ai.dataagent.workflow.node;
 
 import com.alibaba.cloud.ai.dataagent.util.FluxUtil;
+import com.alibaba.cloud.ai.dataagent.prompt.PromptHelper;
 import com.alibaba.cloud.ai.dataagent.util.StateUtil;
 import com.alibaba.cloud.ai.dataagent.dto.datasource.SqlRetryDto;
 import com.alibaba.cloud.ai.dataagent.dto.prompt.SemanticConsistencyDTO;
@@ -63,6 +64,9 @@ public class SemanticConsistencyNode implements NodeAction {
 		// Get current execution step and SQL query
 		String sql = StateUtil.getStringValue(state, SQL_GENERATE_OUTPUT);
 		String userQuery = StateUtil.getCanonicalQuery(state);
+		String previousStepResults = PromptHelper.buildPreviousStepResultsPrompt(
+				StateUtil.hasValue(state, SQL_RESULT_LIST_MEMORY) ? StateUtil.getListValue(state, SQL_RESULT_LIST_MEMORY)
+						: null);
 
 		SemanticConsistencyDTO semanticConsistencyDTO = SemanticConsistencyDTO.builder()
 			.dialect(dialect)
@@ -71,6 +75,7 @@ public class SemanticConsistencyNode implements NodeAction {
 			.schemaInfo(buildMixMacSqlDbPrompt(schemaDTO, true))
 			.userQuery(userQuery)
 			.evidence(evidence)
+			.previousStepResults(previousStepResults)
 			.build();
 		log.info("Starting semantic consistency validation - SQL: {}", sql);
 		Flux<ChatResponse> validationResultFlux = nl2SqlService.performSemanticConsistency(semanticConsistencyDTO);

@@ -1,0 +1,4 @@
+interface:
+  display_name: "DataAgent Engineering"
+  short_description: "DataAgent 工程开发与排障索引"
+  default_prompt: "Use $dataagent-engineering to navigate the DataAgent codebase, identify the correct backend/frontend entry points, and apply project-specific workflow and debugging rules before making changes."

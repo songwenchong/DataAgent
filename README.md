@@ -93,8 +93,21 @@ npm install && npm run dev
 | [快速开始](docs/QUICK_START.md) | 环境要求、数据库导入、基础配置、系统初体验 |
 | [架构设计](docs/ARCHITECTURE.md) | 系统分层架构、StateGraph与工作流设计、核心模块时序图 |
 | [开发者指南](docs/DEVELOPER_GUIDE.md) | 开发环境搭建、详细配置手册、代码规范、扩展开发(向量库/模型) |
+| [代码导览与开发索引](docs/CODEBASE_GUIDE.md) | 代码目录地图、核心入口文件、运行链路、常见改动位置 |
 | [高级功能](docs/ADVANCED_FEATURES.md) | API Key 调用、MCP 服务器配置、自定义混合检索策略、Python执行器配置 |
 | [知识配置最佳实践](docs/KNOWLEDGE_USAGE.md) | 语义模型，业务知识，智能体知识的解释和使用 |
+| [本地开发环境说明](docs/LOCAL_DEV_SETUP.md) | 项目级 settings.xml、项目级 JDK 17、本地执行命令 |
+| [agent6 管网调优记录](docs/agent6-pipe-network-tuning-notes-2026-03-18.md) | 向量恢复、Schema 初始化、循环执行、流式失败等问题的排障记录 |
+
+## 🛠️ 项目级 Maven / JDK
+
+如果你希望只在当前项目内使用本地 `settings.xml` 和本地 JDK 17，而不修改系统全局环境，请使用：
+
+```bash
+./scripts/setup-local-jdk17.sh
+./scripts/mvn-local.sh -v
+./scripts/mvn-local.sh clean test
+```
 
 ## 🤝 加入社区 & 贡献
 

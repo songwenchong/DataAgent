@@ -22,6 +22,7 @@ import com.alibaba.cloud.ai.dataagent.util.StateUtil;
 import lombok.extern.slf4j.Slf4j;
 
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.*;
+import static com.alibaba.cloud.ai.graph.StateGraph.END;
 
 /**
  * @author zhangshenghang
@@ -31,10 +32,15 @@ public class SQLExecutorDispatcher implements EdgeAction {
 
 	@Override
 	public String apply(OverAllState state) {
-		SqlRetryDto retryDto = StateUtil.getObjectValue(state, SQL_REGENERATE_REASON, SqlRetryDto.class);
-		if (retryDto.sqlExecuteFail()) {
+		SqlRetryDto retryDto = StateUtil.getObjectValue(state, SQL_REGENERATE_REASON, SqlRetryDto.class,
+				SqlRetryDto.empty());
+		if (retryDto.isRetryableSqlError()) {
 			log.warn("SQL运行失败，需要重新生成！");
 			return SQL_GENERATE_NODE;
+		}
+		if (retryDto.isTerminalSqlState()) {
+			log.info("SQL执行进入终态 {}，结束当前流程。", retryDto.type());
+			return END;
 		}
 		else {
 			log.info("SQL运行成功，返回PlanExecutorNode。");

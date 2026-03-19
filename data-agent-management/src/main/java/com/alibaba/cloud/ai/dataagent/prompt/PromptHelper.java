@@ -41,7 +41,8 @@ import static com.alibaba.cloud.ai.dataagent.util.ReportTemplateUtil.cleanJsonEx
 
 public class PromptHelper {
 
-	public static String buildMixSelectorPrompt(String evidence, String question, SchemaDTO schemaDTO) {
+	public static String buildMixSelectorPrompt(String evidence, String question, SchemaDTO schemaDTO,
+			String semanticModel) {
 		String schemaInfo = buildMixMacSqlDbPrompt(schemaDTO, true);
 		Map<String, Object> params = new HashMap<>();
 		params.put("schema_info", schemaInfo);
@@ -50,6 +51,7 @@ public class PromptHelper {
 			params.put("evidence", "无");
 		else
 			params.put("evidence", evidence);
+		params.put("semantic_model", StringUtils.isBlank(semanticModel) ? "无" : semanticModel);
 		return PromptConstant.getMixSelectorPromptTemplate().render(params);
 	}
 
@@ -120,6 +122,10 @@ public class PromptHelper {
 		params.put("schema_info", schemaInfo);
 		params.put("evidence", sqlGenerationDTO.getEvidence());
 		params.put("execution_description", sqlGenerationDTO.getExecutionDescription());
+		params.put("semantic_model", StringUtils.isBlank(sqlGenerationDTO.getSemanticModel()) ? "无"
+				: sqlGenerationDTO.getSemanticModel());
+		params.put("previous_step_results", StringUtils.isBlank(sqlGenerationDTO.getPreviousStepResults()) ? "无"
+				: sqlGenerationDTO.getPreviousStepResults());
 		return PromptConstant.getNewSqlGeneratorPromptTemplate().render(params);
 	}
 
@@ -131,6 +137,9 @@ public class PromptHelper {
 		params.put("evidence", semanticConsistencyDTO.getEvidence());
 		params.put("schema_info", semanticConsistencyDTO.getSchemaInfo());
 		params.put("sql", semanticConsistencyDTO.getSql());
+		params.put("previous_step_results",
+				StringUtils.isBlank(semanticConsistencyDTO.getPreviousStepResults()) ? "无"
+						: semanticConsistencyDTO.getPreviousStepResults());
 		return PromptConstant.getSemanticConsistencyPromptTemplate().render(params);
 	}
 
@@ -142,12 +151,15 @@ public class PromptHelper {
 	 * @return built prompt
 	 */
 	public static String buildReportGeneratorPromptWithOptimization(String userRequirementsAndPlan,
-			String analysisStepsAndData, String summaryAndRecommendations, List<UserPromptConfig> optimizationConfigs) {
+			String analysisStepsAndData, String summaryAndRecommendations, String recalledSchema, String semanticModel,
+			List<UserPromptConfig> optimizationConfigs) {
 
 		Map<String, Object> params = new HashMap<>();
 		params.put("user_requirements_and_plan", userRequirementsAndPlan);
 		params.put("analysis_steps_and_data", analysisStepsAndData);
 		params.put("summary_and_recommendations", summaryAndRecommendations);
+		params.put("recalled_schema", StringUtils.isBlank(recalledSchema) ? "无" : recalledSchema);
+		params.put("semantic_model", StringUtils.isBlank(semanticModel) ? "无" : semanticModel);
 		params.put("json_example", cleanJsonExample);
 
 		// Build optional optimization section content from user configs
@@ -169,8 +181,54 @@ public class PromptHelper {
 		params.put("error_sql", sqlGenerationDTO.getSql());
 		params.put("error_message", sqlGenerationDTO.getExceptionMessage());
 		params.put("execution_description", sqlGenerationDTO.getExecutionDescription());
+		params.put("semantic_model", StringUtils.isBlank(sqlGenerationDTO.getSemanticModel()) ? "无"
+				: sqlGenerationDTO.getSemanticModel());
+		params.put("previous_step_results", StringUtils.isBlank(sqlGenerationDTO.getPreviousStepResults()) ? "无"
+				: sqlGenerationDTO.getPreviousStepResults());
 
 		return PromptConstant.getSqlErrorFixerPromptTemplate().render(params);
+	}
+
+	@SuppressWarnings("unchecked")
+	public static String buildPreviousStepResultsPrompt(List<Map<String, Object>> sqlResultMemory) {
+		if (CollectionUtils.isEmpty(sqlResultMemory)) {
+			return "无";
+		}
+
+		StringBuilder sb = new StringBuilder();
+		for (Map<String, Object> stepResult : sqlResultMemory) {
+			String step = Objects.toString(stepResult.get("step"), "");
+			String tableName = Objects.toString(stepResult.get("table_name"), "");
+			String sql = Objects.toString(stepResult.get("sql_query"), "");
+			sb.append("- ").append(step);
+			if (StringUtils.isNotBlank(tableName)) {
+				sb.append(" | table=").append(tableName);
+			}
+			sb.append("\n");
+			if (StringUtils.isNotBlank(sql)) {
+				sb.append("  sql: ").append(sql).append("\n");
+			}
+
+			Object dataObj = stepResult.get("data");
+			if (dataObj instanceof List<?> dataList && !dataList.isEmpty()) {
+				int rowIndex = 1;
+				for (Object rowObj : dataList.stream().limit(5).toList()) {
+					if (rowObj instanceof Map<?, ?> rowMap) {
+						Map<String, Object> filteredRow = new LinkedHashMap<>();
+						for (Map.Entry<?, ?> entry : rowMap.entrySet()) {
+							if (entry.getKey() != null && entry.getValue() != null) {
+								filteredRow.put(entry.getKey().toString(), entry.getValue());
+							}
+						}
+						sb.append("  row").append(rowIndex++).append(": ").append(filteredRow).append("\n");
+					}
+					else if (rowObj != null) {
+						sb.append("  row").append(rowIndex++).append(": ").append(rowObj).append("\n");
+					}
+				}
+			}
+		}
+		return sb.toString().trim();
 	}
 
 	public static String buildBusinessKnowledgePrompt(String businessTerms) {
@@ -279,12 +337,13 @@ public class PromptHelper {
 	 * @return 可行性评估提示词
 	 */
 	public static String buildFeasibilityAssessmentPrompt(String canonicalQuery, SchemaDTO recalledSchema,
-			String evidence, String multiTurn) {
+			String evidence, String semanticModel, String multiTurn) {
 		Map<String, Object> params = new HashMap<>();
 		String schemaInfo = buildMixMacSqlDbPrompt(recalledSchema, true);
 		params.put("canonical_query", canonicalQuery != null ? canonicalQuery : "");
 		params.put("recalled_schema", schemaInfo);
 		params.put("evidence", evidence != null ? evidence : "");
+		params.put("semantic_model", semanticModel != null ? semanticModel : "");
 		params.put("multi_turn", multiTurn != null ? multiTurn : "(无)");
 		return PromptConstant.getFeasibilityAssessmentPromptTemplate().render(params);
 	}

@@ -71,7 +71,7 @@ public class PythonExecuteNode implements NodeAction {
 		try {
 			// Get context
 			String pythonCode = StateUtil.getStringValue(state, PYTHON_GENERATE_NODE_OUTPUT);
-			List<Map<String, String>> sqlResults = StateUtil.hasValue(state, SQL_RESULT_LIST_MEMORY)
+			List<Map<String, Object>> sqlResults = StateUtil.hasValue(state, SQL_RESULT_LIST_MEMORY)
 					? StateUtil.getListValue(state, SQL_RESULT_LIST_MEMORY) : new ArrayList<>();
 
 			// 检查重试次数

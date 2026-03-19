@@ -42,6 +42,7 @@ interface UpdateBusinessKnowledgeDTO {
   businessTerm: string;
   description: string;
   synonyms: string;
+  isRecall: boolean;
   agentId: number;
 }
 
@@ -56,7 +57,7 @@ class BusinessKnowledgeService {
    */
   async list(agentId: number, keyword?: string): Promise<BusinessKnowledgeVO[]> {
     try {
-      const params = { agentId: agentId.toString() };
+      const params: Record<string, string> = { agentId: agentId.toString() };
       if (keyword) {
         params.keyword = keyword;
       }

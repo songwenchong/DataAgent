@@ -17,6 +17,7 @@ package com.alibaba.cloud.ai.dataagent.workflow.node;
 
 import com.alibaba.cloud.ai.dataagent.dto.planner.ExecutionStep;
 import com.alibaba.cloud.ai.dataagent.dto.planner.Plan;
+import com.alibaba.cloud.ai.dataagent.dto.schema.SchemaDTO;
 import com.alibaba.cloud.ai.dataagent.entity.UserPromptConfig;
 import com.alibaba.cloud.ai.dataagent.prompt.PromptHelper;
 import com.alibaba.cloud.ai.dataagent.service.llm.LlmService;
@@ -84,6 +85,10 @@ public class ReportGeneratorNode implements NodeAction {
 		Plan plan = converter.convert(plannerNodeOutput);
 		ExecutionStep executionStep = getCurrentExecutionStep(plan, currentStep);
 		String summaryAndRecommendations = executionStep.getToolParameters().getSummaryAndRecommendations();
+		SchemaDTO schemaDTO = StateUtil.hasValue(state, TABLE_RELATION_OUTPUT)
+				? StateUtil.getObjectValue(state, TABLE_RELATION_OUTPUT, SchemaDTO.class) : null;
+		String recalledSchema = schemaDTO == null ? "" : PromptHelper.buildMixMacSqlDbPrompt(schemaDTO, true);
+		String semanticModel = StateUtil.getStringValue(state, GENEGRATED_SEMANTIC_MODEL_PROMPT, "");
 
 		// Get agent id from state
 		String agentIdStr = StateUtil.getStringValue(state, AGENT_ID);
@@ -99,7 +104,7 @@ public class ReportGeneratorNode implements NodeAction {
 
 		// Generate report streaming flux
 		Flux<ChatResponse> reportGenerationFlux = generateReport(userInput, plan, executionResults,
-				summaryAndRecommendations, agentId);
+				summaryAndRecommendations, recalledSchema, semanticModel, agentId);
 
 		TextType reportTextType = TextType.MARK_DOWN;
 
@@ -142,7 +147,7 @@ public class ReportGeneratorNode implements NodeAction {
 	 * Generates the analysis report.
 	 */
 	private Flux<ChatResponse> generateReport(String userInput, Plan plan, HashMap<String, String> executionResults,
-			String summaryAndRecommendations, Long agentId) {
+			String summaryAndRecommendations, String recalledSchema, String semanticModel, Long agentId) {
 		// Build user requirements and plan description
 		String userRequirementsAndPlan = buildUserRequirementsAndPlan(userInput, plan);
 
@@ -154,7 +159,7 @@ public class ReportGeneratorNode implements NodeAction {
 				agentId);
 
 		String reportPrompt = PromptHelper.buildReportGeneratorPromptWithOptimization(userRequirementsAndPlan,
-				analysisStepsAndData, summaryAndRecommendations, optimizationConfigs);
+				analysisStepsAndData, summaryAndRecommendations, recalledSchema, semanticModel, optimizationConfigs);
 		log.debug("Report Node Prompt: \n {} \n", reportPrompt);
 		return llmService.callUser(reportPrompt);
 	}

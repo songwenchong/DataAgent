@@ -1,0 +1,4 @@
+interface:
+  display_name: "Start DataAgent"
+  short_description: "启动 DataAgent 前后端与真实 MySQL"
+  default_prompt: "Use $start-data-agent and run ./scripts/start-data-agent.sh from the repository root to start, restart, or verify the local DataAgent frontend and backend with the real MySQL configuration."

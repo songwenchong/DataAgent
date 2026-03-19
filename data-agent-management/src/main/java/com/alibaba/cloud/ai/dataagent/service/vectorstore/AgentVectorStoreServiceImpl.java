@@ -30,6 +30,9 @@ import org.springframework.ai.vectorstore.filter.Filter;
 import org.springframework.stereotype.Service;
 import org.springframework.util.Assert;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 
 import static com.alibaba.cloud.ai.dataagent.service.vectorstore.DynamicFilterService.buildFilterExpressionString;
@@ -128,7 +131,7 @@ public class AgentVectorStoreServiceImpl implements AgentVectorStoreService {
 						"Document metadata agentId does not match.");
 			}
 		}
-		vectorStore.add(documents);
+		runWithSimpleVectorStoreWriteLock(() -> vectorStore.add(documents));
 	}
 
 	@Override
@@ -136,12 +139,14 @@ public class AgentVectorStoreServiceImpl implements AgentVectorStoreService {
 		Assert.notNull(metadata, "Metadata cannot be null.");
 		String filterExpression = buildFilterExpressionString(metadata);
 
-		if (vectorStore instanceof SimpleVectorStore) {
-			batchDelDocumentsWithFilter(filterExpression);
-		}
-		else {
-			vectorStore.delete(filterExpression);
-		}
+		runWithSimpleVectorStoreWriteLock(() -> {
+			if (vectorStore instanceof SimpleVectorStore) {
+				batchDelDocumentsWithFilter(filterExpression);
+			}
+			else {
+				vectorStore.delete(filterExpression);
+			}
+		});
 
 		return true;
 	}
@@ -154,14 +159,16 @@ public class AgentVectorStoreServiceImpl implements AgentVectorStoreService {
 		metadata.put(Constant.AGENT_ID, agentId);
 		String filterExpression = buildFilterExpressionString(metadata);
 
-		// es的可以直接元数据删除
-		if (vectorStore instanceof SimpleVectorStore) {
-			// 目前SimpleVectorStore不支持通过元数据删除，使用会抛出UnsupportedOperationException,现在是通过id删除
-			batchDelDocumentsWithFilter(filterExpression);
-		}
-		else {
-			vectorStore.delete(filterExpression);
-		}
+		runWithSimpleVectorStoreWriteLock(() -> {
+			// es的可以直接元数据删除
+			if (vectorStore instanceof SimpleVectorStore) {
+				// 目前SimpleVectorStore不支持通过元数据删除，使用会抛出UnsupportedOperationException,现在是通过id删除
+				batchDelDocumentsWithFilter(filterExpression);
+			}
+			else {
+				vectorStore.delete(filterExpression);
+			}
+		});
 
 		return true;
 	}
@@ -242,6 +249,23 @@ public class AgentVectorStoreServiceImpl implements AgentVectorStoreService {
 	}
 
 	@Override
+	public List<Document> searchByFilter(String query, Filter.Expression filterExpression, Integer topK,
+			double threshold) {
+		Assert.hasText(query, "query cannot be empty.");
+		Assert.notNull(filterExpression, "filterExpression cannot be null.");
+		if (topK == null) {
+			topK = dataAgentProperties.getVectorStore().getDefaultTopkLimit();
+		}
+		SearchRequest searchRequest = SearchRequest.builder()
+			.query(query)
+			.topK(topK)
+			.filterExpression(filterExpression)
+			.similarityThreshold(threshold)
+			.build();
+		return vectorStore.similaritySearch(searchRequest);
+	}
+
+	@Override
 	public boolean hasDocuments(String agentId) {
 		// 类似 MySQL 的 LIMIT 1,只检查是否存在文档
 		List<Document> docs = vectorStore.similaritySearch(org.springframework.ai.vectorstore.SearchRequest.builder()
@@ -251,6 +275,30 @@ public class AgentVectorStoreServiceImpl implements AgentVectorStoreService {
 			.similarityThreshold(0.0)
 			.build());
 		return !docs.isEmpty();
+	}
+
+	private void runWithSimpleVectorStoreWriteLock(Runnable action) {
+		if (!(vectorStore instanceof SimpleVectorStore simpleVectorStore)) {
+			action.run();
+			return;
+		}
+
+		synchronized (simpleVectorStore) {
+			action.run();
+			persistSimpleVectorStore(simpleVectorStore);
+		}
+	}
+
+	private void persistSimpleVectorStore(SimpleVectorStore simpleVectorStore) {
+		try {
+			Path path = Paths.get(dataAgentProperties.getVectorStore().getFilePath());
+			Files.createDirectories(path.getParent());
+			simpleVectorStore.save(path.toFile());
+		}
+		catch (Exception e) {
+			log.error("Failed to persist SimpleVectorStore to file: {}",
+					dataAgentProperties.getVectorStore().getFilePath(), e);
+		}
 	}
 
 }

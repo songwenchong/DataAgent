@@ -120,12 +120,12 @@ public class Nl2SqlServiceImpl implements Nl2SqlService {
 	}
 
 	@Override
-	public Flux<ChatResponse> fineSelect(SchemaDTO schemaDTO, String query, String evidence,
+	public Flux<ChatResponse> fineSelect(SchemaDTO schemaDTO, String query, String evidence, String semanticModel,
 			String sqlGenerateSchemaMissingAdvice, DbConfigBO specificDbConfig, Consumer<SchemaDTO> dtoConsumer) {
 		log.debug("Fine selecting schema for query: {} with evidences and specificDbConfig: {}", query,
 				specificDbConfig != null ? specificDbConfig.getUrl() : "default");
 
-		String prompt = buildMixSelectorPrompt(evidence, query, schemaDTO);
+		String prompt = buildMixSelectorPrompt(evidence, query, schemaDTO, semanticModel);
 		log.debug("Built schema fine selection prompt as follows \n {} \n", prompt);
 
 		Set<String> selectedTables = new HashSet<>();
