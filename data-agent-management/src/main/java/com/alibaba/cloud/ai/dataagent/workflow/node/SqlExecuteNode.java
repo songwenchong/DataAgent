@@ -228,6 +228,7 @@ public class SqlExecuteNode implements NodeAction {
 		currentStepResult.put("step", "step_" + currentStep);
 		currentStepResult.put("sql_query", sqlQuery);
 		currentStepResult.put("table_name", extractPrimaryTableName(sqlQuery));
+		currentStepResult.put("columns", resultSetBO.getColumn());
 		currentStepResult.put("data", resultSetBO.getData());
 		mergedMemory.add(currentStepResult);
 		return mergedMemory;

@@ -16,16 +16,21 @@
 package com.alibaba.cloud.ai.dataagent.controller;
 
 import com.alibaba.cloud.ai.dataagent.dto.GraphRequest;
+import com.alibaba.cloud.ai.dataagent.dto.search.SqlResultRequest;
+import com.alibaba.cloud.ai.dataagent.dto.search.SqlResultResponse;
 import com.alibaba.cloud.ai.dataagent.service.graph.GraphService;
 import com.alibaba.cloud.ai.dataagent.vo.GraphNodeResponse;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
+import reactor.core.scheduler.Schedulers;
 
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.STREAM_EVENT_COMPLETE;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.STREAM_EVENT_ERROR;
@@ -91,6 +96,21 @@ public class GraphController {
 				}
 			})
 			.doOnComplete(() -> log.info("Stream completed successfully, threadId: {}", request.getThreadId()));
+	}
+
+	@PostMapping("/search/sql-result")
+	public Mono<ResponseEntity<SqlResultResponse>> searchSqlResult(@RequestBody SqlResultRequest request) {
+		GraphRequest graphRequest = GraphRequest.builder()
+			.agentId(request.getAgentId())
+			.threadId(request.getThreadId())
+			.query(request.getQuery())
+			.humanFeedback(false)
+			.humanFeedbackContent(null)
+			.rejectedPlan(false)
+			.nl2sqlOnly(false)
+			.build();
+		return Mono.fromCallable(() -> ResponseEntity.ok(graphService.executeSqlResult(graphRequest)))
+			.subscribeOn(Schedulers.boundedElastic());
 	}
 
 }
