@@ -262,6 +262,91 @@ public class DataAgentConfiguration implements DisposableBean {
 		return stateGraph;
 	}
 
+	@Bean
+	public StateGraph textToSqlExecuteGraph(NodeBeanUtil nodeBeanUtil) throws GraphStateException {
+
+		KeyStrategyFactory keyStrategyFactory = () -> {
+			HashMap<String, KeyStrategy> keyStrategyHashMap = new HashMap<>();
+			keyStrategyHashMap.put(INPUT_KEY, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(AGENT_ID, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(MULTI_TURN_CONTEXT, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(INTENT_RECOGNITION_NODE_OUTPUT, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(QUERY_ENHANCE_NODE_OUTPUT, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(GENEGRATED_SEMANTIC_MODEL_PROMPT, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(EVIDENCE, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(TABLE_DOCUMENTS_FOR_SCHEMA_OUTPUT, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(COLUMN_DOCUMENTS__FOR_SCHEMA_OUTPUT, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(SCHEMA_RECALL_ATTEMPT_COUNT, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(SCHEMA_RECALL_FAILURE_REASON, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(TABLE_RELATION_OUTPUT, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(TABLE_RELATION_EXCEPTION_OUTPUT, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(DB_DIALECT_TYPE, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(FEASIBILITY_ASSESSMENT_NODE_OUTPUT, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(SQL_GENERATE_SCHEMA_MISSING_ADVICE, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(SQL_GENERATE_OUTPUT, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(SQL_GENERATE_COUNT, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(SQL_REGENERATE_REASON, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(SEMANTIC_CONSISTENCY_NODE_OUTPUT, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(PLANNER_NODE_OUTPUT, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(PLAN_CURRENT_STEP, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(PLAN_NEXT_NODE, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(PLAN_VALIDATION_STATUS, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(PLAN_VALIDATION_ERROR, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(PLAN_REPAIR_COUNT, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(SQL_EXECUTE_NODE_OUTPUT, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(SQL_RESULT_LIST_MEMORY, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(PYTHON_IS_SUCCESS, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(PYTHON_TRIES_COUNT, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(PYTHON_FALLBACK_MODE, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(PYTHON_EXECUTE_NODE_OUTPUT, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(PYTHON_GENERATE_NODE_OUTPUT, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(PYTHON_ANALYSIS_NODE_OUTPUT, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(IS_ONLY_NL2SQL, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(LIGHTWEIGHT_SQL_RESULT_MODE, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(HUMAN_REVIEW_ENABLED, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(HUMAN_FEEDBACK_DATA, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(TRACE_THREAD_ID, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(RESULT, KeyStrategy.REPLACE);
+			return keyStrategyHashMap;
+		};
+
+		StateGraph stateGraph = new StateGraph(TEXT_TO_SQL_EXECUTE_GRAPH_NAME, keyStrategyFactory)
+			.addNode(INTENT_RECOGNITION_NODE, nodeBeanUtil.getNodeBeanAsync(IntentRecognitionNode.class))
+			.addNode(EVIDENCE_RECALL_NODE, nodeBeanUtil.getNodeBeanAsync(EvidenceRecallNode.class))
+			.addNode(QUERY_ENHANCE_NODE, nodeBeanUtil.getNodeBeanAsync(QueryEnhanceNode.class))
+			.addNode(SCHEMA_RECALL_NODE, nodeBeanUtil.getNodeBeanAsync(SchemaRecallNode.class))
+			.addNode(TABLE_RELATION_NODE, nodeBeanUtil.getNodeBeanAsync(TableRelationNode.class))
+			.addNode(SQL_GENERATE_NODE, nodeBeanUtil.getNodeBeanAsync(SqlGenerateNode.class))
+			.addNode(SQL_EXECUTE_NODE, nodeBeanUtil.getNodeBeanAsync(SqlExecuteNode.class))
+			.addNode(SEMANTIC_CONSISTENCY_NODE, nodeBeanUtil.getNodeBeanAsync(SemanticConsistencyNode.class));
+
+		stateGraph.addEdge(START, INTENT_RECOGNITION_NODE)
+			.addConditionalEdges(INTENT_RECOGNITION_NODE, edge_async(new IntentRecognitionDispatcher()),
+					Map.of(EVIDENCE_RECALL_NODE, EVIDENCE_RECALL_NODE, END, END))
+			.addEdge(EVIDENCE_RECALL_NODE, QUERY_ENHANCE_NODE)
+			.addConditionalEdges(QUERY_ENHANCE_NODE, edge_async(new QueryEnhanceDispatcher()),
+					Map.of(SCHEMA_RECALL_NODE, SCHEMA_RECALL_NODE, END, END))
+			.addConditionalEdges(SCHEMA_RECALL_NODE, edge_async(new SchemaRecallDispatcher()),
+					Map.of(TABLE_RELATION_NODE, TABLE_RELATION_NODE, SCHEMA_RECALL_NODE, SCHEMA_RECALL_NODE, END,
+							END))
+			.addConditionalEdges(TABLE_RELATION_NODE, edge_async(new TableRelationDispatcher()),
+					Map.of(FEASIBILITY_ASSESSMENT_NODE, SQL_GENERATE_NODE, END, END))
+			.addConditionalEdges(SQL_GENERATE_NODE, nodeBeanUtil.getEdgeBeanAsync(SqlGenerateDispatcher.class),
+					Map.of(SQL_GENERATE_NODE, SQL_GENERATE_NODE, END, END, SEMANTIC_CONSISTENCY_NODE,
+							SEMANTIC_CONSISTENCY_NODE))
+			.addConditionalEdges(SEMANTIC_CONSISTENCY_NODE, edge_async(new SemanticConsistenceDispatcher()),
+					Map.of(SQL_GENERATE_NODE, SQL_GENERATE_NODE, SQL_EXECUTE_NODE, SQL_EXECUTE_NODE))
+			.addConditionalEdges(SQL_EXECUTE_NODE, edge_async(new SQLExecutorDispatcher()),
+					Map.of(SQL_GENERATE_NODE, SQL_GENERATE_NODE, PLAN_EXECUTOR_NODE, END, END, END));
+
+		GraphRepresentation graphRepresentation = stateGraph.getGraph(GraphRepresentation.Type.PLANTUML,
+				"lightweight sql result graph");
+		log.info("lightweight workflow in PlantUML format as follows \n\n" + graphRepresentation.content()
+				+ "\n\n");
+
+		return stateGraph;
+	}
+
 	/**
 	 * 为了不必要的重复手动配置，不要在此添加其他向量的手动配置，如果扩展其他向量，请阅读spring ai文档
 	 * <a href="https://springdoc.cn/spring-ai/api/vectordbs.html">...</a>

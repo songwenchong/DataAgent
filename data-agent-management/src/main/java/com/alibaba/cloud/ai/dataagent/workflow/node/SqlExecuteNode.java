@@ -188,9 +188,13 @@ public class SqlExecuteNode implements NodeAction {
 						resultSetBO.getData() != null ? resultSetBO.getData().size() : 0);
 
 				// 回写最终执行的sql，报告节点需要使用
-				ExecutionStep.ToolParameters currentStepParams = PlanProcessUtil.getCurrentExecutionStep(state)
-					.getToolParameters();
-				currentStepParams.setSqlQuery(sqlQuery);
+				if (PlanProcessUtil.hasPlan(state)) {
+					ExecutionStep.ToolParameters currentStepParams = PlanProcessUtil.getCurrentExecutionStep(state)
+						.getToolParameters();
+					if (currentStepParams != null) {
+						currentStepParams.setSqlQuery(sqlQuery);
+					}
+				}
 
 				// Prepare the final result object
 				// Store List of SQL query results for use by code execution node

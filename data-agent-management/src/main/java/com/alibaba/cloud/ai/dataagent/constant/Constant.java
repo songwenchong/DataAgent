@@ -38,6 +38,8 @@ public final class Constant {
 
 	public static final String NL2SQL_GRAPH_NAME = "nl2sqlGraph";
 
+	public static final String TEXT_TO_SQL_EXECUTE_GRAPH_NAME = "textToSqlExecuteGraph";
+
 	public static final String INTENT_RECOGNITION_NODE_OUTPUT = "INTENT_RECOGNITION_NODE_OUTPUT";
 
 	public static final String QUERY_ENHANCE_NODE_OUTPUT = "QUERY_ENHANCE_NODE_OUTPUT";

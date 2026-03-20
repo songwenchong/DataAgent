@@ -70,6 +70,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -95,7 +96,7 @@ public class GraphServiceImpl implements GraphService {
 
 	private final SemanticModelService semanticModelService;
 
-	public GraphServiceImpl(StateGraph stateGraph, ExecutorService executorService,
+	public GraphServiceImpl(@Qualifier("nl2sqlGraph") StateGraph stateGraph, ExecutorService executorService,
 			MultiTurnContextManager multiTurnContextManager, LangfuseService langfuseReporter,
 			SemanticModelService semanticModelService) throws GraphStateException {
 		this.compiledGraph = stateGraph.compile(CompileConfig.builder().interruptBefore(HUMAN_FEEDBACK_NODE).build());

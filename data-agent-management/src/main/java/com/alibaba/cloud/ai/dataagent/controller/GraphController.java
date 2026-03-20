@@ -19,6 +19,7 @@ import com.alibaba.cloud.ai.dataagent.dto.GraphRequest;
 import com.alibaba.cloud.ai.dataagent.dto.search.SqlResultRequest;
 import com.alibaba.cloud.ai.dataagent.dto.search.SqlResultResponse;
 import com.alibaba.cloud.ai.dataagent.service.graph.GraphService;
+import com.alibaba.cloud.ai.dataagent.service.sql.SqlResultLiteQueryService;
 import com.alibaba.cloud.ai.dataagent.vo.GraphNodeResponse;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -47,6 +48,8 @@ import static com.alibaba.cloud.ai.dataagent.constant.Constant.STREAM_EVENT_ERRO
 public class GraphController {
 
 	private final GraphService graphService;
+
+	private final SqlResultLiteQueryService sqlResultLiteQueryService;
 
 	//todo song
 	@GetMapping(value = "/stream/search", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -110,6 +113,12 @@ public class GraphController {
 			.nl2sqlOnly(false)
 			.build();
 		return Mono.fromCallable(() -> ResponseEntity.ok(graphService.executeSqlResult(graphRequest)))
+			.subscribeOn(Schedulers.boundedElastic());
+	}
+
+	@PostMapping("/search/sql-result-lite")
+	public Mono<ResponseEntity<SqlResultResponse>> searchSqlResultLite(@RequestBody SqlResultRequest request) {
+		return Mono.fromCallable(() -> ResponseEntity.ok(sqlResultLiteQueryService.query(request)))
 			.subscribeOn(Schedulers.boundedElastic());
 	}
 
