@@ -1,0 +1,13 @@
+<component name="libraryTable">
+  <library name="Maven: com.aliyun:alibabacloud-gateway-spi:0.0.2">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/../../maven/localRepository_zzht/com/aliyun/alibabacloud-gateway-spi/0.0.2/alibabacloud-gateway-spi-0.0.2.jar!/" />
+    </CLASSES>
+    <JAVADOC>
+      <root url="jar://$PROJECT_DIR$/../../maven/localRepository_zzht/com/aliyun/alibabacloud-gateway-spi/0.0.2/alibabacloud-gateway-spi-0.0.2-javadoc.jar!/" />
+    </JAVADOC>
+    <SOURCES>
+      <root url="jar://$PROJECT_DIR$/../../maven/localRepository_zzht/com/aliyun/alibabacloud-gateway-spi/0.0.2/alibabacloud-gateway-spi-0.0.2-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>

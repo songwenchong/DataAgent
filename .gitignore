@@ -1,66 +1,24 @@
-target/
+# Compiled class file
+*.class
 
-### IntelliJ IDEA ###
-.idea/*
-**/.idea/*
-.idea/modules.xml
-.idea/jarRepositories.xml
-.idea/compiler.xml
-.idea/libraries/
-*.iws
-*.iml
-*.ipr
+# Log file
+*.log
 
-### Eclipse ###
-.apt_generated
-.classpath
-.factorypath
-.project
-.settings
-.springBeans
-.sts4-cache
+# BlueJ files
+*.ctxt
 
-### VS Code ###
-.vscode/
+# Mobile Tools for Java (J2ME)
+.mtj.tmp/
 
-### Mac OS ###
-.DS_Store
+# Package Files #
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
 
-### .env files contain local environment variables ###
-.env
-
-# Maven ignore
-.flattened-pom.xml
-.trae/
-.mvn/
-settings.xml
-
-# node_modules
-**/node_modules
-
-
-# windows os
-/extensions/
-/h2-data/
-
-# checkstyle report files
-**/checkstyle-report.xml
-**/logs/*
-
-# SpecStory files - ignore entire .specstory directory
-.specstory/
-.specstory/.what-is-this.md
-.specstory/history/*
-
-# MCP configuration files
-modified_mcp_config.json
-.cursorindexingignore
-
-# ignore code copilot local index
-.idea/LocalCodeIndex/
-
-uploads/*
-vectorstore/*
-.java-version
-.tools/
-.run/
+# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
+hs_err_pid*
+replay_pid*
