@@ -1,13 +1,13 @@
 <component name="libraryTable">
   <library name="Maven: org.bouncycastle:bcpkix-jdk18on:1.81">
     <CLASSES>
-      <root url="jar://$PROJECT_DIR$/../../maven/localRepository_zzht/org/bouncycastle/bcpkix-jdk18on/1.81/bcpkix-jdk18on-1.81.jar!/" />
+      <root url="jar://$PROJECT_DIR$/../../../maven/localRepository/org/bouncycastle/bcpkix-jdk18on/1.81/bcpkix-jdk18on-1.81.jar!/" />
     </CLASSES>
     <JAVADOC>
-      <root url="jar://$PROJECT_DIR$/../../maven/localRepository_zzht/org/bouncycastle/bcpkix-jdk18on/1.81/bcpkix-jdk18on-1.81-javadoc.jar!/" />
+      <root url="jar://$PROJECT_DIR$/../../../maven/localRepository/org/bouncycastle/bcpkix-jdk18on/1.81/bcpkix-jdk18on-1.81-javadoc.jar!/" />
     </JAVADOC>
     <SOURCES>
-      <root url="jar://$PROJECT_DIR$/../../maven/localRepository_zzht/org/bouncycastle/bcpkix-jdk18on/1.81/bcpkix-jdk18on-1.81-sources.jar!/" />
+      <root url="jar://$PROJECT_DIR$/../../../maven/localRepository/org/bouncycastle/bcpkix-jdk18on/1.81/bcpkix-jdk18on-1.81-sources.jar!/" />
     </SOURCES>
   </library>
 </component>

@@ -1,13 +1,13 @@
 <component name="libraryTable">
   <library name="Maven: org.apache.pdfbox:jempbox:1.8.17">
     <CLASSES>
-      <root url="jar://$PROJECT_DIR$/../../maven/localRepository_zzht/org/apache/pdfbox/jempbox/1.8.17/jempbox-1.8.17.jar!/" />
+      <root url="jar://$PROJECT_DIR$/../../../maven/localRepository/org/apache/pdfbox/jempbox/1.8.17/jempbox-1.8.17.jar!/" />
     </CLASSES>
     <JAVADOC>
-      <root url="jar://$PROJECT_DIR$/../../maven/localRepository_zzht/org/apache/pdfbox/jempbox/1.8.17/jempbox-1.8.17-javadoc.jar!/" />
+      <root url="jar://$PROJECT_DIR$/../../../maven/localRepository/org/apache/pdfbox/jempbox/1.8.17/jempbox-1.8.17-javadoc.jar!/" />
     </JAVADOC>
     <SOURCES>
-      <root url="jar://$PROJECT_DIR$/../../maven/localRepository_zzht/org/apache/pdfbox/jempbox/1.8.17/jempbox-1.8.17-sources.jar!/" />
+      <root url="jar://$PROJECT_DIR$/../../../maven/localRepository/org/apache/pdfbox/jempbox/1.8.17/jempbox-1.8.17-sources.jar!/" />
     </SOURCES>
   </library>
 </component>

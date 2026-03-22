@@ -1,13 +1,13 @@
 <component name="libraryTable">
   <library name="Maven: org.apache.hbase:hbase-prefix-tree:2.0.0-alpha4">
     <CLASSES>
-      <root url="jar://$PROJECT_DIR$/../../maven/localRepository_zzht/org/apache/hbase/hbase-prefix-tree/2.0.0-alpha4/hbase-prefix-tree-2.0.0-alpha4.jar!/" />
+      <root url="jar://$PROJECT_DIR$/../../../maven/localRepository/org/apache/hbase/hbase-prefix-tree/2.0.0-alpha4/hbase-prefix-tree-2.0.0-alpha4.jar!/" />
     </CLASSES>
     <JAVADOC>
-      <root url="jar://$PROJECT_DIR$/../../maven/localRepository_zzht/org/apache/hbase/hbase-prefix-tree/2.0.0-alpha4/hbase-prefix-tree-2.0.0-alpha4-javadoc.jar!/" />
+      <root url="jar://$PROJECT_DIR$/../../../maven/localRepository/org/apache/hbase/hbase-prefix-tree/2.0.0-alpha4/hbase-prefix-tree-2.0.0-alpha4-javadoc.jar!/" />
     </JAVADOC>
     <SOURCES>
-      <root url="jar://$PROJECT_DIR$/../../maven/localRepository_zzht/org/apache/hbase/hbase-prefix-tree/2.0.0-alpha4/hbase-prefix-tree-2.0.0-alpha4-sources.jar!/" />
+      <root url="jar://$PROJECT_DIR$/../../../maven/localRepository/org/apache/hbase/hbase-prefix-tree/2.0.0-alpha4/hbase-prefix-tree-2.0.0-alpha4-sources.jar!/" />
     </SOURCES>
   </library>
 </component>

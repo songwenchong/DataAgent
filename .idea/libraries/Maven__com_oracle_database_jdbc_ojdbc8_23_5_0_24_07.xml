@@ -1,13 +1,13 @@
 <component name="libraryTable">
   <library name="Maven: com.oracle.database.jdbc:ojdbc8:23.5.0.24.07">
     <CLASSES>
-      <root url="jar://$PROJECT_DIR$/../../maven/localRepository_zzht/com/oracle/database/jdbc/ojdbc8/23.5.0.24.07/ojdbc8-23.5.0.24.07.jar!/" />
+      <root url="jar://$PROJECT_DIR$/../../../maven/localRepository/com/oracle/database/jdbc/ojdbc8/23.5.0.24.07/ojdbc8-23.5.0.24.07.jar!/" />
     </CLASSES>
     <JAVADOC>
-      <root url="jar://$PROJECT_DIR$/../../maven/localRepository_zzht/com/oracle/database/jdbc/ojdbc8/23.5.0.24.07/ojdbc8-23.5.0.24.07-javadoc.jar!/" />
+      <root url="jar://$PROJECT_DIR$/../../../maven/localRepository/com/oracle/database/jdbc/ojdbc8/23.5.0.24.07/ojdbc8-23.5.0.24.07-javadoc.jar!/" />
     </JAVADOC>
     <SOURCES>
-      <root url="jar://$PROJECT_DIR$/../../maven/localRepository_zzht/com/oracle/database/jdbc/ojdbc8/23.5.0.24.07/ojdbc8-23.5.0.24.07-sources.jar!/" />
+      <root url="jar://$PROJECT_DIR$/../../../maven/localRepository/com/oracle/database/jdbc/ojdbc8/23.5.0.24.07/ojdbc8-23.5.0.24.07-sources.jar!/" />
     </SOURCES>
   </library>
 </component>

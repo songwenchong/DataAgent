@@ -1,13 +1,13 @@
 <component name="libraryTable">
   <library name="Maven: org.apache.hbase:hbase-common:tests:2.0.0-alpha4">
     <CLASSES>
-      <root url="jar://$PROJECT_DIR$/../../maven/localRepository_zzht/org/apache/hbase/hbase-common/2.0.0-alpha4/hbase-common-2.0.0-alpha4-tests.jar!/" />
+      <root url="jar://$PROJECT_DIR$/../../../maven/localRepository/org/apache/hbase/hbase-common/2.0.0-alpha4/hbase-common-2.0.0-alpha4-tests.jar!/" />
     </CLASSES>
     <JAVADOC>
-      <root url="jar://$PROJECT_DIR$/../../maven/localRepository_zzht/org/apache/hbase/hbase-common/2.0.0-alpha4/hbase-common-2.0.0-alpha4-test-javadoc.jar!/" />
+      <root url="jar://$PROJECT_DIR$/../../../maven/localRepository/org/apache/hbase/hbase-common/2.0.0-alpha4/hbase-common-2.0.0-alpha4-test-javadoc.jar!/" />
     </JAVADOC>
     <SOURCES>
-      <root url="jar://$PROJECT_DIR$/../../maven/localRepository_zzht/org/apache/hbase/hbase-common/2.0.0-alpha4/hbase-common-2.0.0-alpha4-test-sources.jar!/" />
+      <root url="jar://$PROJECT_DIR$/../../../maven/localRepository/org/apache/hbase/hbase-common/2.0.0-alpha4/hbase-common-2.0.0-alpha4-test-sources.jar!/" />
     </SOURCES>
   </library>
 </component>

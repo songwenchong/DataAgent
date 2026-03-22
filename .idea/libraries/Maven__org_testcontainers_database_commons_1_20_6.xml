@@ -1,13 +1,13 @@
 <component name="libraryTable">
   <library name="Maven: org.testcontainers:database-commons:1.20.6">
     <CLASSES>
-      <root url="jar://$PROJECT_DIR$/../../maven/localRepository_zzht/org/testcontainers/database-commons/1.20.6/database-commons-1.20.6.jar!/" />
+      <root url="jar://$PROJECT_DIR$/../../../maven/localRepository/org/testcontainers/database-commons/1.20.6/database-commons-1.20.6.jar!/" />
     </CLASSES>
     <JAVADOC>
-      <root url="jar://$PROJECT_DIR$/../../maven/localRepository_zzht/org/testcontainers/database-commons/1.20.6/database-commons-1.20.6-javadoc.jar!/" />
+      <root url="jar://$PROJECT_DIR$/../../../maven/localRepository/org/testcontainers/database-commons/1.20.6/database-commons-1.20.6-javadoc.jar!/" />
     </JAVADOC>
     <SOURCES>
-      <root url="jar://$PROJECT_DIR$/../../maven/localRepository_zzht/org/testcontainers/database-commons/1.20.6/database-commons-1.20.6-sources.jar!/" />
+      <root url="jar://$PROJECT_DIR$/../../../maven/localRepository/org/testcontainers/database-commons/1.20.6/database-commons-1.20.6-sources.jar!/" />
     </SOURCES>
   </library>
 </component>

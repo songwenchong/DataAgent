@@ -1,13 +1,13 @@
 <component name="libraryTable">
   <library name="Maven: io.micrometer:micrometer-observation-test:1.14.9">
     <CLASSES>
-      <root url="jar://$PROJECT_DIR$/../../maven/localRepository_zzht/io/micrometer/micrometer-observation-test/1.14.9/micrometer-observation-test-1.14.9.jar!/" />
+      <root url="jar://$PROJECT_DIR$/../../../maven/localRepository/io/micrometer/micrometer-observation-test/1.14.9/micrometer-observation-test-1.14.9.jar!/" />
     </CLASSES>
     <JAVADOC>
-      <root url="jar://$PROJECT_DIR$/../../maven/localRepository_zzht/io/micrometer/micrometer-observation-test/1.14.9/micrometer-observation-test-1.14.9-javadoc.jar!/" />
+      <root url="jar://$PROJECT_DIR$/../../../maven/localRepository/io/micrometer/micrometer-observation-test/1.14.9/micrometer-observation-test-1.14.9-javadoc.jar!/" />
     </JAVADOC>
     <SOURCES>
-      <root url="jar://$PROJECT_DIR$/../../maven/localRepository_zzht/io/micrometer/micrometer-observation-test/1.14.9/micrometer-observation-test-1.14.9-sources.jar!/" />
+      <root url="jar://$PROJECT_DIR$/../../../maven/localRepository/io/micrometer/micrometer-observation-test/1.14.9/micrometer-observation-test-1.14.9-sources.jar!/" />
     </SOURCES>
   </library>
 </component>

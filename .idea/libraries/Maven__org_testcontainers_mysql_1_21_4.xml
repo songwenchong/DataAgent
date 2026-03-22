@@ -1,13 +1,13 @@
 <component name="libraryTable">
   <library name="Maven: org.testcontainers:mysql:1.21.4">
     <CLASSES>
-      <root url="jar://$PROJECT_DIR$/../../maven/localRepository_zzht/org/testcontainers/mysql/1.21.4/mysql-1.21.4.jar!/" />
+      <root url="jar://$PROJECT_DIR$/../../../maven/localRepository/org/testcontainers/mysql/1.21.4/mysql-1.21.4.jar!/" />
     </CLASSES>
     <JAVADOC>
-      <root url="jar://$PROJECT_DIR$/../../maven/localRepository_zzht/org/testcontainers/mysql/1.21.4/mysql-1.21.4-javadoc.jar!/" />
+      <root url="jar://$PROJECT_DIR$/../../../maven/localRepository/org/testcontainers/mysql/1.21.4/mysql-1.21.4-javadoc.jar!/" />
     </JAVADOC>
     <SOURCES>
-      <root url="jar://$PROJECT_DIR$/../../maven/localRepository_zzht/org/testcontainers/mysql/1.21.4/mysql-1.21.4-sources.jar!/" />
+      <root url="jar://$PROJECT_DIR$/../../../maven/localRepository/org/testcontainers/mysql/1.21.4/mysql-1.21.4-sources.jar!/" />
     </SOURCES>
   </library>
 </component>
