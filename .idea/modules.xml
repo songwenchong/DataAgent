@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<project version="4">
-  <component name="ProjectModuleManager">
-    <modules>
-      <module fileurl="file://$PROJECT_DIR$/spring-ai-alibaba-data-agent.iml" filepath="$PROJECT_DIR$/spring-ai-alibaba-data-agent.iml" />
-      <module fileurl="file://$PROJECT_DIR$/data-agent-management/spring-ai-alibaba-data-agent-management.iml" filepath="$PROJECT_DIR$/data-agent-management/spring-ai-alibaba-data-agent-management.iml" />
-    </modules>
-  </component>
-</project>
