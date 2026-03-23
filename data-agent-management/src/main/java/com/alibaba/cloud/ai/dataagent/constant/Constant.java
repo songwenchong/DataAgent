@@ -42,6 +42,12 @@ public final class Constant {
 
 	public static final String INTENT_RECOGNITION_NODE_OUTPUT = "INTENT_RECOGNITION_NODE_OUTPUT";
 
+	public static final String DIRECT_ANSWER_OUTPUT = "DIRECT_ANSWER_OUTPUT";
+
+	public static final String CLARIFICATION_NODE_OUTPUT = "CLARIFICATION_NODE_OUTPUT";
+
+	public static final String REFERENCE_RESOLUTION_NODE_OUTPUT = "REFERENCE_RESOLUTION_NODE_OUTPUT";
+
 	public static final String BURST_ANALYSIS_ROUTE_OUTPUT = "BURST_ANALYSIS_ROUTE_OUTPUT";
 
 	public static final String QUERY_ENHANCE_NODE_OUTPUT = "QUERY_ENHANCE_NODE_OUTPUT";
@@ -103,6 +109,12 @@ public final class Constant {
 	public static final String PLAN_EXECUTOR_NODE = "PLAN_EXECUTOR_NODE";
 
 	public static final String INTENT_RECOGNITION_NODE = "INTENT_RECOGNITION_NODE";
+
+	public static final String DIRECT_ANSWER_NODE = "DIRECT_ANSWER_NODE";
+
+	public static final String CLARIFICATION_NODE = "CLARIFICATION_NODE";
+
+	public static final String REFERENCE_RESOLUTION_NODE = "REFERENCE_RESOLUTION_NODE";
 
 	public static final String BURST_ANALYSIS_ROUTE_NODE = "BURST_ANALYSIS_ROUTE_NODE";
 
@@ -170,6 +182,14 @@ public final class Constant {
 	public static final String THREAD_ROUTE_CONTEXT = "THREAD_ROUTE_CONTEXT";
 
 	public static final String BURST_ANALYSIS_API_OUTPUT = "BURST_ANALYSIS_API_OUTPUT";
+
+	public static final String REFERENCE_RESOLVED_QUERY = "REFERENCE_RESOLVED_QUERY";
+
+	public static final String REFERENCE_CONTEXT_SUMMARY = "REFERENCE_CONTEXT_SUMMARY";
+
+	public static final String REFERENCE_ENTITY_TYPE = "REFERENCE_ENTITY_TYPE";
+
+	public static final String REFERENCE_ORDINAL = "REFERENCE_ORDINAL";
 
 	public static final String ROUTE_SCENE_BURST_ANALYSIS = "BURST_ANALYSIS";
 

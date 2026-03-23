@@ -640,6 +640,30 @@
           // 重置报告状态
           resetReportState(sessionState, request);
 
+          const MAX_SAVED_MESSAGE_LENGTH = 40000;
+
+          const compressLargeNodeHtml = (html: string): string => {
+            if (!html || html.length <= MAX_SAVED_MESSAGE_LENGTH) {
+              return html;
+            }
+
+            const rawResponseHeader = '<h3>Raw Response</h3>';
+            const rawResponseIndex = html.indexOf(rawResponseHeader);
+            if (rawResponseIndex >= 0) {
+              const trimmed = html.substring(0, rawResponseIndex);
+              const notice =
+                '<div class="result-set-empty">原始响应内容过大，历史消息中已省略完整 Raw Response，请在本次运行结果中查看。</div>';
+              if ((trimmed + notice).length <= MAX_SAVED_MESSAGE_LENGTH) {
+                return trimmed + notice;
+              }
+            }
+
+            return (
+              html.substring(0, MAX_SAVED_MESSAGE_LENGTH) +
+              '<div class="result-set-empty">内容过长，历史消息中已截断显示。</div>'
+            );
+          };
+
           const saveNodeMessage = (node: GraphNodeResponse[]): Promise<void> => {
             if (!node || !node.length) return Promise.resolve();
 
@@ -665,7 +689,7 @@
             }
 
             // 使用generateNodeHtml方法生成HTML代码，确保显示与保存一致
-            const nodeHtml = generateNodeHtml(node);
+            const nodeHtml = compressLargeNodeHtml(generateNodeHtml(node));
 
             const aiMessage: ChatMessage = {
               sessionId,
@@ -904,6 +928,8 @@
                   // 如果是当前显示的会话，同步到视图
                   if (currentSession.value?.id === sessionId) {
                     isStreaming.value = false;
+                    nodeBlocks.value = [];
+                    await selectSession(currentSession.value);
                   }
                 }
               }
@@ -1193,7 +1219,7 @@
             const saveNodeMessage = (node: GraphNodeResponse[]): Promise<void> => {
               if (!node || !node.length) return Promise.resolve();
 
-              const nodeHtml = generateNodeHtml(node);
+              const nodeHtml = compressLargeNodeHtml(generateNodeHtml(node));
 
               const aiMessage: ChatMessage = {
                 sessionId,

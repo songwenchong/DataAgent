@@ -15,7 +15,7 @@
  */
 package com.alibaba.cloud.ai.dataagent.workflow.node;
 
-import com.alibaba.cloud.ai.dataagent.dto.burst.BurstAnalysisMockResponseDTO;
+import com.alibaba.cloud.ai.dataagent.dto.burst.BurstAnalysisResponseDTO;
 import com.alibaba.cloud.ai.dataagent.enums.TextType;
 import com.alibaba.cloud.ai.dataagent.service.burst.BurstAnalysisService;
 import com.alibaba.cloud.ai.dataagent.util.ChatResponseUtil;
@@ -40,8 +40,7 @@ import static com.alibaba.cloud.ai.dataagent.constant.Constant.ROUTE_REASON;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.TRACE_THREAD_ID;
 
 /**
- * Phase-three mock node. Uses a dedicated service abstraction so the real
- * external API can replace the mock implementation later without changing graph wiring.
+ * Calls the dedicated burst-analysis service and streams the rendered result.
  */
 @Slf4j
 @Component
@@ -57,39 +56,60 @@ public class BurstAnalysisNode implements NodeAction {
 		String userInput = StateUtil.getStringValue(state, INPUT_KEY, "");
 		String multiTurnContext = StateUtil.getStringValue(state, MULTI_TURN_CONTEXT, "");
 		String routeReason = StateUtil.getStringValue(state, ROUTE_REASON, "");
-		BurstAnalysisMockResponseDTO response = burstAnalysisService.analyze(userInput, multiTurnContext, routeReason,
+		BurstAnalysisResponseDTO response = burstAnalysisService.analyze(userInput, multiTurnContext, routeReason,
 				agentId, threadId);
-		String message = buildMockMarkdown(response);
+		String message = buildMessage(response);
 
-		log.info("Burst-analysis mock branch activated for threadId: {}", threadId);
+		log.info("Burst-analysis branch activated for threadId: {}", threadId);
 		Flux<ChatResponse> sourceFlux = Flux.just(ChatResponseUtil.createPureResponse(message));
 		Flux<GraphResponse<StreamingOutput>> generator = FluxUtil.createStreamingGenerator(this.getClass(), state,
 				sourceFlux,
-				Flux.just(ChatResponseUtil.createResponse("Generating burst-analysis mock result..."),
+				Flux.just(ChatResponseUtil.createResponse("\u6B63\u5728\u751F\u6210\u7206\u7BA1\u5206\u6790\u7ED3\u679C..."),
 						ChatResponseUtil.createPureResponse(TextType.MARK_DOWN.getStartSign())),
 				Flux.just(ChatResponseUtil.createPureResponse(TextType.MARK_DOWN.getEndSign()),
-						ChatResponseUtil.createResponse("Burst-analysis mock result generated")),
+						ChatResponseUtil.createResponse("\u7206\u7BA1\u5206\u6790\u7ED3\u679C\u5DF2\u751F\u6210")),
 				value -> Map.of(BURST_ANALYSIS_API_OUTPUT, response));
 		return Map.of(BURST_ANALYSIS_API_OUTPUT, generator);
 	}
 
-	private String buildMockMarkdown(BurstAnalysisMockResponseDTO response) {
+	private String buildMessage(BurstAnalysisResponseDTO response) {
+		if (!response.isSuccess() && isClarificationResponse(response)) {
+			return response.getSummary();
+		}
+		return buildMarkdown(response);
+	}
+
+	private boolean isClarificationResponse(BurstAnalysisResponseDTO response) {
+		return (response.getRequestUri() == null || response.getRequestUri().isBlank())
+				&& (response.getRawResponse() == null || response.getRawResponse().isBlank());
+	}
+
+	private String buildMarkdown(BurstAnalysisResponseDTO response) {
 		StringBuilder markdown = new StringBuilder();
-		markdown.append("## Burst Analysis Mock Result\n\n");
+		markdown.append("## \u7206\u7BA1\u5206\u6790\u7ED3\u679C\n\n");
 		markdown.append(response.getSummary()).append("\n\n");
-		markdown.append("- Risk level: ").append(response.getRiskLevel()).append("\n");
-		markdown.append("- Suspected pipe section: ").append(response.getSuspectedPipeSection()).append("\n");
-		markdown.append("- Affected scope: ").append(response.getAffectedScope()).append("\n\n");
-		markdown.append("### Key Devices\n");
-		for (String device : response.getKeyDevices()) {
-			markdown.append("- ").append(device).append("\n");
+		markdown.append("- \u6267\u884C\u6210\u529F: ").append(response.isSuccess()).append("\n");
+		markdown.append("- Layer ID: ").append(response.getLayerId()).append("\n");
+		markdown.append("- GID: ").append(response.getGid()).append("\n");
+		if (response.getCloseValves() != null && !response.getCloseValves().isBlank()) {
+			markdown.append("- \u5173\u9600\u5217\u8868: ").append(response.getCloseValves()).append("\n");
 		}
-		markdown.append("\n### Suggested Actions\n");
-		for (String action : response.getSuggestedActions()) {
-			markdown.append("- ").append(action).append("\n");
+		if (response.getParentAnalysisId() != null && !response.getParentAnalysisId().isBlank()) {
+			markdown.append("- \u7236\u5206\u6790ID: ").append(response.getParentAnalysisId()).append("\n");
 		}
-		markdown.append("\n### Suggested Follow-up\n");
-		markdown.append(response.getFollowUpSuggestion()).append("\n");
+		if (response.getRequestUri() != null && !response.getRequestUri().isBlank()) {
+			markdown.append("- Request URI: ").append(response.getRequestUri()).append("\n");
+		}
+		if (response.getHighlights() != null && !response.getHighlights().isEmpty()) {
+			markdown.append("\n### \u5206\u6790\u8981\u70B9\n");
+			for (String highlight : response.getHighlights()) {
+				markdown.append("- ").append(highlight).append("\n");
+			}
+		}
+		if (response.getRawResponse() != null && !response.getRawResponse().isBlank()) {
+			markdown.append("\n### Raw Response\n");
+			markdown.append("```json\n").append(response.getRawResponse()).append("\n```\n");
+		}
 		return markdown.toString();
 	}
 

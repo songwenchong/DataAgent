@@ -128,6 +128,9 @@ public class DataAgentConfiguration implements DisposableBean {
 			keyStrategyHashMap.put(MULTI_TURN_CONTEXT, KeyStrategy.REPLACE);
 			// Intent recognition
 			keyStrategyHashMap.put(INTENT_RECOGNITION_NODE_OUTPUT, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(DIRECT_ANSWER_OUTPUT, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(CLARIFICATION_NODE_OUTPUT, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(REFERENCE_RESOLUTION_NODE_OUTPUT, KeyStrategy.REPLACE);
 			// Burst-analysis route
 			keyStrategyHashMap.put(BURST_ANALYSIS_ROUTE_OUTPUT, KeyStrategy.REPLACE);
 			keyStrategyHashMap.put(ROUTE_SCENE, KeyStrategy.REPLACE);
@@ -135,6 +138,10 @@ public class DataAgentConfiguration implements DisposableBean {
 			keyStrategyHashMap.put(ROUTE_REASON, KeyStrategy.REPLACE);
 			keyStrategyHashMap.put(THREAD_ROUTE_CONTEXT, KeyStrategy.REPLACE);
 			keyStrategyHashMap.put(BURST_ANALYSIS_API_OUTPUT, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(REFERENCE_RESOLVED_QUERY, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(REFERENCE_CONTEXT_SUMMARY, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(REFERENCE_ENTITY_TYPE, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(REFERENCE_ORDINAL, KeyStrategy.REPLACE);
 			// QUERY_ENHANCE_NODE节点输出
 			keyStrategyHashMap.put(QUERY_ENHANCE_NODE_OUTPUT, KeyStrategy.REPLACE);
 			// Semantic model
@@ -192,6 +199,9 @@ public class DataAgentConfiguration implements DisposableBean {
 
 		StateGraph stateGraph = new StateGraph(NL2SQL_GRAPH_NAME, keyStrategyFactory)
 			.addNode(INTENT_RECOGNITION_NODE, nodeBeanUtil.getNodeBeanAsync(IntentRecognitionNode.class))
+			.addNode(DIRECT_ANSWER_NODE, nodeBeanUtil.getNodeBeanAsync(DirectAnswerNode.class))
+			.addNode(CLARIFICATION_NODE, nodeBeanUtil.getNodeBeanAsync(ClarificationNode.class))
+			.addNode(REFERENCE_RESOLUTION_NODE, nodeBeanUtil.getNodeBeanAsync(ReferenceResolutionNode.class))
 			.addNode(BURST_ANALYSIS_ROUTE_NODE, nodeBeanUtil.getNodeBeanAsync(BurstAnalysisRouteNode.class))
 			.addNode(BURST_ANALYSIS_NODE, nodeBeanUtil.getNodeBeanAsync(BurstAnalysisNode.class))
 			.addNode(EVIDENCE_RECALL_NODE, nodeBeanUtil.getNodeBeanAsync(EvidenceRecallNode.class))
@@ -211,8 +221,13 @@ public class DataAgentConfiguration implements DisposableBean {
 			.addNode(HUMAN_FEEDBACK_NODE, nodeBeanUtil.getNodeBeanAsync(HumanFeedbackNode.class));
 
 		stateGraph.addEdge(START, INTENT_RECOGNITION_NODE)
-			.addConditionalEdges(INTENT_RECOGNITION_NODE, edge_async(new IntentRecognitionDispatcher()),
-					Map.of(EVIDENCE_RECALL_NODE, BURST_ANALYSIS_ROUTE_NODE, END, END))
+			.addConditionalEdges(INTENT_RECOGNITION_NODE, edge_async(new ConversationIntentDispatcher()),
+					Map.of(CLARIFICATION_NODE, CLARIFICATION_NODE, DIRECT_ANSWER_NODE, DIRECT_ANSWER_NODE, END, END))
+			.addEdge(DIRECT_ANSWER_NODE, END)
+			.addConditionalEdges(CLARIFICATION_NODE, edge_async(new ClarificationDispatcher()),
+					Map.of(REFERENCE_RESOLUTION_NODE, REFERENCE_RESOLUTION_NODE, END, END))
+			.addConditionalEdges(REFERENCE_RESOLUTION_NODE, edge_async(new ReferenceResolutionDispatcher()),
+					Map.of(BURST_ANALYSIS_ROUTE_NODE, BURST_ANALYSIS_ROUTE_NODE, END, END))
 			.addConditionalEdges(BURST_ANALYSIS_ROUTE_NODE, edge_async(new BurstAnalysisDispatcher()),
 					Map.of(BURST_ANALYSIS_NODE, BURST_ANALYSIS_NODE, EVIDENCE_RECALL_NODE, EVIDENCE_RECALL_NODE))
 			.addEdge(BURST_ANALYSIS_NODE, END)

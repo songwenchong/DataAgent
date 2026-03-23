@@ -15,11 +15,11 @@
  */
 package com.alibaba.cloud.ai.dataagent.service.burst;
 
-import com.alibaba.cloud.ai.dataagent.dto.burst.BurstAnalysisMockResponseDTO;
+import com.alibaba.cloud.ai.dataagent.dto.burst.BurstAnalysisResponseDTO;
 
 public interface BurstAnalysisService {
 
-	BurstAnalysisMockResponseDTO analyze(String query, String multiTurnContext, String routeReason, String agentId,
+	BurstAnalysisResponseDTO analyze(String query, String multiTurnContext, String routeReason, String agentId,
 			String threadId);
 
 }
