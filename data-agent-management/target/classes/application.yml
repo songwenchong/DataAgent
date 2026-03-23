@@ -1,0 +1,130 @@
+server:
+  port: 8065
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+# 存储 DataAgent 业务数据的数据库，并非Agent分析数据的来源
+spring:
+  datasource:
+    url: jdbc:mysql://192.168.9.127:3306/agent-test?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    username: wx
+    password: wx
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    type: com.alibaba.druid.pool.DruidDataSource
+  sql:
+    init:
+      mode: never
+      schema-locations: classpath:sql/schema.sql
+      data-locations: classpath:sql/data.sql
+      continue-on-error: true
+      separator: ;
+      encoding: utf-8
+  ai:
+    dashscope:
+      api-key: sk-8990fd2ad63648e4bb374f8dc5f8bed6
+      chat:
+        enabled: true
+        options:
+          model: qwen-plus
+      embedding:
+        enabled: true
+        options:
+          model: text-embedding-v4
+    vectorstore:
+      type: simple
+    alibaba:
+      data-agent:
+        vector-store:
+          table-topk-limit: 10
+          table-similarity-threshold: 0.2
+          default-topk-limit: 8
+          default-similarity-threshold: 0.4
+        llm-service-type: stream
+        code-executor:
+          # 运行Python代码的环境（生产环境建议使用docker，不建议使用local）
+          code-pool-executor: local
+          # Python执行的最大重试次数
+          python-max-tries-count: 5
+        file:
+          type: local
+          path-prefix: data-agent
+          # 当前目录下不要用点， ./uploads win下拼接完整格式路径会解析不了，比如 data-agent/./uploads win识别不了
+          path: uploads
+          url-prefix: /uploads
+          imageSize: 2097152
+          oss:
+            access-key-id: ${OSS_ACCESS_KEY_ID:}
+            access-key-secret: ${OSS_ACCESS_KEY_SECRET:}
+            endpoint: ${OSS_ENDPOINT:}
+            bucket-name: ${OSS_BUCKET_NAME:}
+            custom-domain: ${OSS_CUSTOM_DOMAIN:}
+        max-sql-retry-count: 10
+        # Langfuse 可观测性配置
+        langfuse:
+          enabled: ${LANGFUSE_ENABLED:false}
+          host: ${LANGFUSE_HOST:}
+          public-key: ${LANGFUSE_PUBLIC_KEY:}
+          secret-key: ${LANGFUSE_SECRET_KEY:}
+        # 数据库连接配置（你的数据库信息）
+        databases:
+          # 数据源1：PG 主库（标识：pg-main）
+          - id: pg-main
+            type: postgresql
+            url: jdbc:postgresql://192.168.10.92:5432/stest
+            username: postgres
+            password: YSD@city
+            driver-class-name: org.postgresql.Driver
+            # 可选：数据源描述（方便 LLM 识别）
+            description: pg-main数据库，存储ces数据
+          # 数据源2：PG 从库（标识：pg-slave）
+          - id: sqlserver-main
+            type: sqlserver
+            url: jdbc:sqlserver://192.168.10.66:1433;databaseName=hzsw_ai;encrypt=false;trustServerCertificate=true
+            username: sa
+            password: YSD@city
+            # SQL Server 正确的驱动类
+            driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+            description:  SQL Server 主库，存储业务核心数据
+        # 启用元数据注释解析
+        metadata:
+          comment-resolver:
+            enable: true
+        metadata-annotation-parse:
+          enabled: true          # 元数据解析开关（一级缩进，与parse-types同级）
+          parse-types: swagger,custom,db-table
+          inject-to-prompt: true # 元数据注入提示词（核心：语义模型能拿到注释的关键）
+
+  webflux:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+      enabled: true
+
+mybatis:
+
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+
+# 日志配置
+logging:
+  level:
+    com.alibaba.cloud.ai.dataagent.service: debug
+    com.alibaba.cloud.ai.dataagent.workflow.node: debug
+    com.alibaba.cloud.ai.mapper: debug
+    org.springframework.jdbc: debug
+# 新增 DataAgent Python 核心配置
+dataagent:
+  code:
+    python:
+      # 关键：Windows 下你的 Python 指令是 python，直接指定即可
+      interpreter-path: python
+      # 可选：超时时间，避免脚本卡死
+      timeout: 30
+      # 关闭严格检测（兼容 Windows 命名）
+      strict-check: false
+

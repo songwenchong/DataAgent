@@ -176,6 +176,20 @@ public class OssFileStorageServiceImpl implements FileStorageService {
 	}
 
 	@Override
+	public boolean fileExists(String filePath) {
+		if (!StringUtils.hasText(filePath)) {
+			return false;
+		}
+		try {
+			return ossClient.doesObjectExist(ossProperties.getBucketName(), filePath);
+		}
+		catch (Exception e) {
+			log.warn("Failed to check OSS file existence: {}", filePath, e);
+			return false;
+		}
+	}
+
+	@Override
 	public String getFileUrl(String filePath) {
 		try {
 			if (StringUtils.hasText(ossProperties.getCustomDomain())) {

@@ -1,66 +1,58 @@
+# maven ignore
 target/
+*.class
+*.jar
+*.war
+*.zip
+*.tar
+*.tar.gz
+dependency-reduced-pom.xml
+.flattened-pom.xml
+pom.xml.versionsBackup
 
-### IntelliJ IDEA ###
-.idea/*
-**/.idea/*
-.idea/modules.xml
-.idea/jarRepositories.xml
-.idea/compiler.xml
-.idea/libraries/
-*.iws
-*.iml
-*.ipr
+# maven plugin ignore
+release.properties
+*.gpg
 
-### Eclipse ###
-.apt_generated
+# eclipse ignore
+.settings/
+.project
 .classpath
 .factorypath
-.project
-.settings
-.springBeans
-.sts4-cache
 
-### VS Code ###
+# idea ignore
+.idea/
+!/.idea/icon.png
+!/.idea/vcs.xml
+*.ipr
+*.iml
+*.iws
+
+# vscode ignore
 .vscode/
 
-### Mac OS ###
+# temp ignore
+logs/
+*.log
+*.tlog
+*.doc
+*.cache
+*.diff
+*.patch
+*.tmp
+
+# system ignore
 .DS_Store
+Thumbs.db
 
-### .env files contain local environment variables ###
-.env
+# antlr ignore
+gen/
+*.tokens
 
-# Maven ignore
-.flattened-pom.xml
-.trae/
-.mvn/
-settings.xml
+# profiler ignore
+.profiler/
 
-# node_modules
-**/node_modules
-
-
-# windows os
-/extensions/
-/h2-data/
-
-# checkstyle report files
-**/checkstyle-report.xml
-**/logs/*
-
-# SpecStory files - ignore entire .specstory directory
-.specstory/
-.specstory/.what-is-this.md
-.specstory/history/*
-
-# MCP configuration files
-modified_mcp_config.json
-.cursorindexingignore
-
-# ignore code copilot local index
-.idea/LocalCodeIndex/
-
-uploads/*
-vectorstore/*
-.java-version
-.tools/
-.run/
+# hugo ignore
+public/
+.hugo_build.lock
+*.html-e

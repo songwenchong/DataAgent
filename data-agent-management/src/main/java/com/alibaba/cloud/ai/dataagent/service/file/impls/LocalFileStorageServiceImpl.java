@@ -118,6 +118,13 @@ public class LocalFileStorageServiceImpl implements FileStorageService {
 	}
 
 	@Override
+	public boolean fileExists(String filePath) {
+		Path fullPath = fileStorageProperties.getLocalBasePath().resolve(filePath);
+		checkPathSecurity(fullPath);
+		return Files.exists(fullPath);
+	}
+
+	@Override
 	public String getFileUrl(String filePath) {
 		checkPathSecurity(fileStorageProperties.getLocalBasePath().resolve(filePath));
 		// 返回相对路径，前端会自动基于当前域名访问

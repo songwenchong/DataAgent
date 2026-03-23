@@ -16,6 +16,7 @@
 package com.alibaba.cloud.ai.dataagent.service.graph;
 
 import com.alibaba.cloud.ai.dataagent.dto.GraphRequest;
+import com.alibaba.cloud.ai.dataagent.dto.search.SqlResultResponse;
 import com.alibaba.cloud.ai.graph.exception.GraphRunnerException;
 import com.alibaba.cloud.ai.dataagent.vo.GraphNodeResponse;
 import org.springframework.http.codec.ServerSentEvent;
@@ -35,6 +36,8 @@ public interface GraphService {
 	 * @throws GraphRunnerException 图运行异常
 	 */
 	String nl2sql(String naturalQuery, String agentId) throws GraphRunnerException;
+
+	SqlResultResponse executeSqlResult(GraphRequest graphRequest);
 
 	/**
 	 * 流式处理NL2SQL或者DataAgent请求

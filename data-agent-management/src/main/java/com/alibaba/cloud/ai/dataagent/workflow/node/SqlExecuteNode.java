@@ -16,6 +16,7 @@
 package com.alibaba.cloud.ai.dataagent.workflow.node;
 
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.PLAN_CURRENT_STEP;
+import static com.alibaba.cloud.ai.dataagent.constant.Constant.LIGHTWEIGHT_SQL_RESULT_MODE;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.SQL_EXECUTE_NODE_OUTPUT;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.SQL_GENERATE_COUNT;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.SQL_GENERATE_OUTPUT;
@@ -162,7 +163,8 @@ public class SqlExecuteNode implements NodeAction {
 						return;
 					}
 					// 调用大模型获取图表配置信息并填充到ResultSetBO中
-					DisplayStyleBO displayStyleBO = enrichResultSetWithChartConfig(state, resultSetBO);
+					DisplayStyleBO displayStyleBO = isLightweightSqlResultMode(state) ? null
+							: enrichResultSetWithChartConfig(state, resultSetBO);
 				resultBO.setResultSet(resultSetBO);
 				resultBO.setDisplayStyle(displayStyleBO);
 
@@ -186,9 +188,13 @@ public class SqlExecuteNode implements NodeAction {
 						resultSetBO.getData() != null ? resultSetBO.getData().size() : 0);
 
 				// 回写最终执行的sql，报告节点需要使用
-				ExecutionStep.ToolParameters currentStepParams = PlanProcessUtil.getCurrentExecutionStep(state)
-					.getToolParameters();
-				currentStepParams.setSqlQuery(sqlQuery);
+				if (PlanProcessUtil.hasPlan(state)) {
+					ExecutionStep.ToolParameters currentStepParams = PlanProcessUtil.getCurrentExecutionStep(state)
+						.getToolParameters();
+					if (currentStepParams != null) {
+						currentStepParams.setSqlQuery(sqlQuery);
+					}
+				}
 
 				// Prepare the final result object
 				// Store List of SQL query results for use by code execution node
@@ -228,6 +234,7 @@ public class SqlExecuteNode implements NodeAction {
 		currentStepResult.put("step", "step_" + currentStep);
 		currentStepResult.put("sql_query", sqlQuery);
 		currentStepResult.put("table_name", extractPrimaryTableName(sqlQuery));
+		currentStepResult.put("columns", resultSetBO.getColumn());
 		currentStepResult.put("data", resultSetBO.getData());
 		mergedMemory.add(currentStepResult);
 		return mergedMemory;
@@ -239,6 +246,10 @@ public class SqlExecuteNode implements NodeAction {
 		}
 		Matcher matcher = PRIMARY_TABLE_PATTERN.matcher(sqlQuery);
 		return matcher.find() ? matcher.group(1) : "";
+	}
+
+	private boolean isLightweightSqlResultMode(OverAllState state) {
+		return StateUtil.getObjectValue(state, LIGHTWEIGHT_SQL_RESULT_MODE, Boolean.class, false);
 	}
 
 	/**

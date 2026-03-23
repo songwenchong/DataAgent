@@ -38,6 +38,8 @@ public final class Constant {
 
 	public static final String NL2SQL_GRAPH_NAME = "nl2sqlGraph";
 
+	public static final String TEXT_TO_SQL_EXECUTE_GRAPH_NAME = "textToSqlExecuteGraph";
+
 	public static final String INTENT_RECOGNITION_NODE_OUTPUT = "INTENT_RECOGNITION_NODE_OUTPUT";
 
 	public static final String QUERY_ENHANCE_NODE_OUTPUT = "QUERY_ENHANCE_NODE_OUTPUT";
@@ -160,5 +162,7 @@ public final class Constant {
 
 	// Langfuse 追踪：threadId 透传到 graph state，用于 token 累计
 	public static final String TRACE_THREAD_ID = "TRACE_THREAD_ID";
+
+	public static final String LIGHTWEIGHT_SQL_RESULT_MODE = "LIGHTWEIGHT_SQL_RESULT_MODE";
 
 }
