@@ -16,24 +16,20 @@
 package com.alibaba.cloud.ai.dataagent.workflow.dispatcher;
 
 import com.alibaba.cloud.ai.dataagent.dto.prompt.IntentRecognitionOutputDTO;
+import com.alibaba.cloud.ai.dataagent.util.StateUtil;
 import com.alibaba.cloud.ai.graph.OverAllState;
 import com.alibaba.cloud.ai.graph.action.EdgeAction;
-import com.alibaba.cloud.ai.dataagent.util.StateUtil;
 import lombok.extern.slf4j.Slf4j;
 
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.EVIDENCE_RECALL_NODE;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.INTENT_RECOGNITION_NODE_OUTPUT;
 import static com.alibaba.cloud.ai.graph.StateGraph.END;
 
-/**
- * 根据意图识别结果决定下一个节点的分发器
- */
 @Slf4j
 public class IntentRecognitionDispatcher implements EdgeAction {
 
 	@Override
-	public String apply(OverAllState state) throws Exception {
-		// 获取意图识别结果
+	public String apply(OverAllState state) {
 		IntentRecognitionOutputDTO intentResult = StateUtil.getObjectValue(state, INTENT_RECOGNITION_NODE_OUTPUT,
 				IntentRecognitionOutputDTO.class);
 
@@ -44,16 +40,21 @@ public class IntentRecognitionDispatcher implements EdgeAction {
 		}
 
 		String classification = intentResult.getClassification();
+		String intent = intentResult.getIntent();
 
-		// 根据分类结果决定下一个节点
-		if ("《闲聊或无关指令》".equals(classification)) {
-			log.warn("Intent classified as chat or irrelevant, ending conversation");
-			return END;
-		}
-		else {
-			log.info("Intent classified as potential data analysis request, proceeding to evidence recall");
+		if ("gis_spatial_query".equalsIgnoreCase(intent) || "PENDING_CLARIFICATION_INPUT".equals(classification)
+				|| "analysis_capable_request".equals(classification)) {
+			log.info("Intent classified as analysis-capable request, proceeding to evidence recall");
 			return EVIDENCE_RECALL_NODE;
 		}
+
+		if ("direct_answer_request".equals(classification)) {
+			log.warn("Intent classified as direct-answer request, ending SQL execution flow");
+			return END;
+		}
+
+		log.warn("Intent not suitable for SQL execution endpoint, ending conversation. intent={}", intent);
+		return END;
 	}
 
 }

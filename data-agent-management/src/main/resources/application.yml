@@ -63,6 +63,10 @@ spring:
             bucket-name: ${OSS_BUCKET_NAME:}
             custom-domain: ${OSS_CUSTOM_DOMAIN:}
         max-sql-retry-count: 10
+        burst-analysis:
+          enabled: true
+          base-url: http://192.168.11.180:3000
+          pipe-burst-path: /api/v1/gis/analysis/pipe-burst
         # Langfuse 可观测性配置
         langfuse:
           enabled: ${LANGFUSE_ENABLED:false}

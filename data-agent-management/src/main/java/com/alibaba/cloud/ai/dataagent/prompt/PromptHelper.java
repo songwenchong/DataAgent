@@ -16,6 +16,7 @@
 package com.alibaba.cloud.ai.dataagent.prompt;
 
 import com.alibaba.cloud.ai.dataagent.bo.schema.DisplayStyleBO;
+import com.alibaba.cloud.ai.dataagent.dto.prompt.BurstAnalysisRouteOutputDTO;
 import com.alibaba.cloud.ai.dataagent.dto.prompt.EvidenceQueryRewriteDTO;
 import com.alibaba.cloud.ai.dataagent.dto.prompt.IntentRecognitionOutputDTO;
 import com.alibaba.cloud.ai.dataagent.dto.prompt.QueryEnhanceOutputDTO;
@@ -298,6 +299,17 @@ public class PromptHelper {
 				IntentRecognitionOutputDTO.class);
 		params.put("format", beanOutputConverter.getFormat());
 		return PromptConstant.getIntentRecognitionPromptTemplate().render(params);
+	}
+
+	public static String buildBurstAnalysisRoutePrompt(String multiTurn, String latestQuery, String ruleHint) {
+		Map<String, Object> params = new HashMap<>();
+		params.put("multi_turn", multiTurn != null ? multiTurn : "(无)");
+		params.put("latest_query", latestQuery);
+		params.put("rule_hint", StringUtils.isBlank(ruleHint) ? "无规则提示" : ruleHint);
+		BeanOutputConverter<BurstAnalysisRouteOutputDTO> beanOutputConverter = new BeanOutputConverter<>(
+				BurstAnalysisRouteOutputDTO.class);
+		params.put("format", beanOutputConverter.getFormat());
+		return PromptConstant.getBurstAnalysisRoutePromptTemplate().render(params);
 	}
 
 	/**

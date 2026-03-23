@@ -57,6 +57,8 @@ public class DataAgentProperties {
 
 	private TextSplitter textSplitter = new TextSplitter();
 
+	private BurstAnalysis burstAnalysis = new BurstAnalysis();
+
 	/**
 	 * 最多保留的对话轮数
 	 */
@@ -89,6 +91,27 @@ public class DataAgentProperties {
 
 		// ECharts (图表库) 南方科技大学开源软件镜像站
 		private String echartsUrl = "https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/echarts/5.5.0/echarts.min.js";
+
+	}
+
+	@Getter
+	@Setter
+	public static class BurstAnalysis {
+
+		/**
+		 * Whether the burst-analysis HTTP integration is enabled.
+		 */
+		private boolean enabled = true;
+
+		/**
+		 * Base URL of the external burst-analysis service.
+		 */
+		private String baseUrl = "";
+
+		/**
+		 * Path of the pipe burst analysis endpoint.
+		 */
+		private String pipeBurstPath = "/api/v1/gis/analysis/pipe-burst";
 
 	}
 

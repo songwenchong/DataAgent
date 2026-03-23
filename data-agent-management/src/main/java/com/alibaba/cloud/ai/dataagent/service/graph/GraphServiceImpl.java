@@ -23,6 +23,8 @@ import static com.alibaba.cloud.ai.dataagent.constant.Constant.INPUT_KEY;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.IS_ONLY_NL2SQL;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.LIGHTWEIGHT_SQL_RESULT_MODE;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.MULTI_TURN_CONTEXT;
+import static com.alibaba.cloud.ai.dataagent.constant.Constant.ROUTE_SCENE_BURST_ANALYSIS;
+import static com.alibaba.cloud.ai.dataagent.constant.Constant.ROUTE_SCENE_DEFAULT_GRAPH;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.SQL_GENERATE_OUTPUT;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.SQL_REGENERATE_REASON;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.SQL_EXECUTE_NODE_OUTPUT;
@@ -45,6 +47,7 @@ import com.alibaba.cloud.ai.dataagent.service.semantic.SemanticModelService;
 import com.alibaba.cloud.ai.dataagent.util.JsonUtil;
 import com.alibaba.cloud.ai.dataagent.util.StateUtil;
 import com.alibaba.cloud.ai.dataagent.vo.GraphNodeResponse;
+import com.alibaba.cloud.ai.dataagent.workflow.node.BurstAnalysisNode;
 import com.alibaba.cloud.ai.dataagent.workflow.node.PlannerNode;
 import com.alibaba.cloud.ai.graph.CompileConfig;
 import com.alibaba.cloud.ai.graph.CompiledGraph;
@@ -475,6 +478,8 @@ public class GraphServiceImpl implements GraphService {
 		context.setSpan(span);
 
 		String multiTurnContext = multiTurnContextManager.buildContext(threadId);
+		log.info("[CTX_TRACE][MULTI_TURN][GRAPH_START][threadId={}] query={} context=\n{}", threadId, query,
+				multiTurnContext);
 		multiTurnContextManager.beginTurn(threadId, query);
 		Flux<NodeOutput> nodeOutputFlux = compiledGraph.stream(
 				Map.of(IS_ONLY_NL2SQL, nl2sqlOnly, INPUT_KEY, query, AGENT_ID, agentId, HUMAN_REVIEW_ENABLED,
@@ -506,9 +511,12 @@ public class GraphServiceImpl implements GraphService {
 		if (graphRequest.isRejectedPlan()) {
 			multiTurnContextManager.restartLastTurn(threadId);
 		}
+		String multiTurnContext = multiTurnContextManager.buildContext(threadId);
+		log.info("[CTX_TRACE][MULTI_TURN][GRAPH_FEEDBACK_RESUME][threadId={}] rejectedPlan={} feedback={} context=\n{}",
+				threadId, graphRequest.isRejectedPlan(), feedbackContent, multiTurnContext);
 		Map<String, Object> stateUpdate = new HashMap<>();
 		stateUpdate.put(HUMAN_FEEDBACK_DATA, feedbackData);
-		stateUpdate.put(MULTI_TURN_CONTEXT, multiTurnContextManager.buildContext(threadId));
+		stateUpdate.put(MULTI_TURN_CONTEXT, multiTurnContext);
 
 		RunnableConfig baseConfig = RunnableConfig.builder().threadId(threadId).build();
 		RunnableConfig updatedConfig;
@@ -630,9 +638,7 @@ public class GraphServiceImpl implements GraphService {
 		}
 		if (!isTypeSign) {
 			context.appendOutput(chunk);
-			if (PlannerNode.class.getSimpleName().equals(node)) {
-				multiTurnContextManager.appendPlannerChunk(threadId, chunk);
-			}
+			recordMultiTurnChunk(threadId, node, textType, chunk);
 			GraphNodeResponse response = GraphNodeResponse.builder()
 				.agentId(request.getAgentId())
 				.threadId(threadId)
@@ -646,6 +652,19 @@ public class GraphServiceImpl implements GraphService {
 						threadId, result);
 				stopStreamProcessing(threadId);
 			}
+		}
+	}
+
+	private void recordMultiTurnChunk(String threadId, String node, TextType textType, String chunk) {
+		if (PlannerNode.class.getSimpleName().equals(node)) {
+			multiTurnContextManager.setRouteScene(threadId, ROUTE_SCENE_DEFAULT_GRAPH);
+			multiTurnContextManager.appendPlannerChunk(threadId, chunk);
+			return;
+		}
+
+		if (BurstAnalysisNode.class.getSimpleName().equals(node) && TextType.MARK_DOWN.equals(textType)) {
+			multiTurnContextManager.setRouteScene(threadId, ROUTE_SCENE_BURST_ANALYSIS);
+			multiTurnContextManager.appendAssistantChunk(threadId, chunk);
 		}
 	}
 

@@ -6,6 +6,11 @@
       "sourceType": "com.alibaba.cloud.ai.dataagent.properties.DataAgentProperties"
     },
     {
+      "name": "spring.ai.alibaba.data-agent.burst-analysis",
+      "type": "com.alibaba.cloud.ai.dataagent.properties.DataAgentProperties$BurstAnalysis",
+      "sourceType": "com.alibaba.cloud.ai.dataagent.properties.DataAgentProperties"
+    },
+    {
       "name": "spring.ai.alibaba.data-agent.code-executor",
       "type": "com.alibaba.cloud.ai.dataagent.properties.CodeExecutorProperties",
       "sourceType": "com.alibaba.cloud.ai.dataagent.properties.CodeExecutorProperties"
@@ -72,6 +77,27 @@
     }
   ],
   "properties": [
+    {
+      "name": "spring.ai.alibaba.data-agent.burst-analysis.base-url",
+      "type": "java.lang.String",
+      "description": "Base URL of the external burst-analysis service.",
+      "sourceType": "com.alibaba.cloud.ai.dataagent.properties.DataAgentProperties$BurstAnalysis",
+      "defaultValue": ""
+    },
+    {
+      "name": "spring.ai.alibaba.data-agent.burst-analysis.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Whether the burst-analysis HTTP integration is enabled.",
+      "sourceType": "com.alibaba.cloud.ai.dataagent.properties.DataAgentProperties$BurstAnalysis",
+      "defaultValue": true
+    },
+    {
+      "name": "spring.ai.alibaba.data-agent.burst-analysis.pipe-burst-path",
+      "type": "java.lang.String",
+      "description": "Path of the pipe burst analysis endpoint.",
+      "sourceType": "com.alibaba.cloud.ai.dataagent.properties.DataAgentProperties$BurstAnalysis",
+      "defaultValue": "\/api\/v1\/gis\/analysis\/pipe-burst"
+    },
     {
       "name": "spring.ai.alibaba.data-agent.code-executor.code-pool-executor",
       "type": "com.alibaba.cloud.ai.dataagent.enums.CodePoolExecutorEnum",

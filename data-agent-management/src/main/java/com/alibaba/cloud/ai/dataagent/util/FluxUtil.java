@@ -113,6 +113,37 @@ public final class FluxUtil {
 	}
 
 	/**
+	 * Create a streaming generator that collects model output for internal use but only
+	 * exposes status messages to the frontend.
+	 * @param nodeClass node class
+	 * @param state state
+	 * @param startMessage start message
+	 * @param completionMessage completion message
+	 * @param resultMapper result mapping function based on the hidden model output
+	 * @param sourceFlux source data stream
+	 * @return Flux instance
+	 */
+	public static Flux<GraphResponse<StreamingOutput>> createSilentStreamingGeneratorWithMessages(
+			Class<? extends NodeAction> nodeClass, OverAllState state, String startMessage, String completionMessage,
+			Function<String, Map<String, Object>> resultMapper, Flux<ChatResponse> sourceFlux) {
+		String nodeName = nodeClass.getSimpleName();
+
+		final StringBuilder collectedResult = new StringBuilder();
+		Flux<ChatResponse> hiddenFlux = sourceFlux.doOnNext(chatResponse -> {
+			String text = ChatResponseUtil.getText(chatResponse);
+			collectedResult.append(text);
+		});
+
+		Flux<ChatResponse> visibleFlux = startMessage == null ? Flux.empty()
+				: Flux.just(ChatResponseUtil.createResponse(startMessage));
+		visibleFlux = visibleFlux.concatWith(hiddenFlux.ignoreElements().thenMany(
+				completionMessage == null ? Flux.empty() : Flux.just(ChatResponseUtil.createResponse(completionMessage))));
+
+		return toStreamingResponseFlux(nodeName, state, visibleFlux,
+				() -> resultMapper.apply(collectedResult.toString()));
+	}
+
+	/**
 	 * create streaming generator with start and end flux
 	 * @param nodeClass node class
 	 * @param state state
