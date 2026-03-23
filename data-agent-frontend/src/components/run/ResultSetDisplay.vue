@@ -17,7 +17,7 @@
 <script setup lang="ts">
   import { ref, computed, nextTick } from 'vue';
   import ChartComponent from './ChartComponent.vue';
-  import type { ResultData } from '@/services/resultSet';
+  import type { ReferencePreviewData, ResultData } from '@/services/resultSet';
   import {
     Grid as ICON_TABLE,
     Histogram as ICON_CHART,
@@ -39,6 +39,59 @@
       props.resultData.displayStyle?.type &&
       props.resultData.displayStyle?.type !== 'table'
     );
+  });
+
+  const referencePreview = computed<ReferencePreviewData | undefined>(() => {
+    return props.resultData?.referencePreview;
+  });
+
+  const getReferenceValue = (...keys: string[]): string => {
+    const attributes = referencePreview.value?.attributes || {};
+    for (const key of keys) {
+      const value = attributes[key];
+      if (value) {
+        return value;
+      }
+    }
+    return '';
+  };
+
+  const referencePreviewSummary = computed(() => {
+    const preview = referencePreview.value;
+    if (!preview) {
+      return '';
+    }
+    const ordinal = preview.rowOrdinal || 1;
+    const label = preview.entityType === 'pipe' ? '管段' : '对象';
+    const gid = preview.gid ? `gid=${preview.gid}` : '';
+    const layerId = preview.layerId ? `layerId=${preview.layerId}` : '';
+    const diameter = getReferenceValue('管径', 'diameter');
+    const material = getReferenceValue('管材', 'material');
+    const details = [gid, layerId, diameter ? `管径=${diameter}` : '', material ? `管材=${material}` : '']
+      .filter(Boolean)
+      .join('，');
+    if (preview.supplementalReference) {
+      return `已为后续追问锁定第 ${ordinal} 条可引用${label}${details ? `：${details}` : ''}`;
+    }
+    return `第 ${ordinal} 条可引用${label}${details ? `：${details}` : ''}`;
+  });
+
+  const referencePreviewFields = computed(() => {
+    const preview = referencePreview.value;
+    if (!preview) {
+      return [];
+    }
+    return [
+      { label: '引用对象类型', value: preview.entityType === 'pipe' ? '管段' : preview.entityType || '对象' },
+      { label: '第几条', value: preview.rowOrdinal ? `第 ${preview.rowOrdinal} 条` : '第 1 条' },
+      { label: 'gid', value: preview.gid || '' },
+      { label: 'layerId', value: preview.layerId || '' },
+      { label: '管径', value: getReferenceValue('管径', 'diameter') },
+      { label: '管材', value: getReferenceValue('管材', 'material') },
+      { label: '管长', value: getReferenceValue('管长', 'length') },
+      { label: '起点编号', value: getReferenceValue('stnod', '起点编号') },
+      { label: '终点编号', value: getReferenceValue('ednod', '终点编号') },
+    ].filter(item => item.value);
   });
 
   // 生成表格HTML
@@ -200,6 +253,20 @@
 
     <!-- 显示区域 -->
     <div class="result-show-area">
+      <div v-if="referencePreview" class="reference-preview-card">
+        <div class="reference-preview-title">首条可引用数据</div>
+        <div class="reference-preview-summary">{{ referencePreviewSummary }}</div>
+        <div class="reference-preview-grid">
+          <div
+            v-for="item in referencePreviewFields"
+            :key="item.label"
+            class="reference-preview-item"
+          >
+            <span class="reference-preview-label">{{ item.label }}</span>
+            <span class="reference-preview-value">{{ item.value }}</span>
+          </div>
+        </div>
+      </div>
       <ChartComponent v-if="isChartView && showChart" :resultData="resultData" />
       <div v-else v-html="generateTableHtml()"></div>
     </div>
@@ -265,5 +332,53 @@
   .result-show-area {
     width: 100%;
     min-height: 300px;
+  }
+
+  .reference-preview-card {
+    margin-bottom: 16px;
+    padding: 16px;
+    border-radius: 12px;
+    border: 1px solid #d9ecff;
+    background: linear-gradient(180deg, #f5fbff 0%, #eef7ff 100%);
+  }
+
+  .reference-preview-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1f2d3d;
+    margin-bottom: 8px;
+  }
+
+  .reference-preview-summary {
+    margin-bottom: 12px;
+    color: #3c4a5d;
+    line-height: 1.6;
+  }
+
+  .reference-preview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 8px 12px;
+  }
+
+  .reference-preview-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.72);
+  }
+
+  .reference-preview-label {
+    font-size: 12px;
+    color: #6b7280;
+  }
+
+  .reference-preview-value {
+    font-size: 13px;
+    font-weight: 600;
+    color: #111827;
+    word-break: break-word;
   }
 </style>

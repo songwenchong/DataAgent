@@ -37,6 +37,7 @@ import static com.alibaba.cloud.ai.dataagent.constant.Constant.BURST_ANALYSIS_AP
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.INPUT_KEY;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.MULTI_TURN_CONTEXT;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.ROUTE_REASON;
+import static com.alibaba.cloud.ai.dataagent.constant.Constant.SESSION_ID;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.TRACE_THREAD_ID;
 
 /**
@@ -53,11 +54,12 @@ public class BurstAnalysisNode implements NodeAction {
 	public Map<String, Object> apply(OverAllState state) {
 		String agentId = StateUtil.getStringValue(state, AGENT_ID, "");
 		String threadId = StateUtil.getStringValue(state, TRACE_THREAD_ID, "");
+		String sessionId = StateUtil.getStringValue(state, SESSION_ID, "");
 		String userInput = StateUtil.getStringValue(state, INPUT_KEY, "");
 		String multiTurnContext = StateUtil.getStringValue(state, MULTI_TURN_CONTEXT, "");
 		String routeReason = StateUtil.getStringValue(state, ROUTE_REASON, "");
 		BurstAnalysisResponseDTO response = burstAnalysisService.analyze(userInput, multiTurnContext, routeReason,
-				agentId, threadId);
+				agentId, threadId, sessionId);
 		String message = buildMessage(response);
 
 		log.info("Burst-analysis branch activated for threadId: {}", threadId);
@@ -73,6 +75,10 @@ public class BurstAnalysisNode implements NodeAction {
 	}
 
 	private String buildMessage(BurstAnalysisResponseDTO response) {
+		log.info(
+				"[CTX_TRACE][BURST_RENDER] success={} mustCloseCount={} pipesCount={} affectedUserCount={} requestUri={}",
+				response.isSuccess(), response.getMustCloseCount(), response.getPipesCount(),
+				response.getAffectedUserCount(), response.getRequestUri());
 		if (!response.isSuccess() && isClarificationResponse(response)) {
 			return response.getSummary();
 		}
@@ -89,6 +95,25 @@ public class BurstAnalysisNode implements NodeAction {
 		markdown.append("## \u7206\u7BA1\u5206\u6790\u7ED3\u679C\n\n");
 		if (response.getSummary() != null && !response.getSummary().isBlank()) {
 			markdown.append(response.getSummary()).append("\n\n");
+		}
+		markdown.append("### 核心统计\n");
+		appendLine(markdown, "必关阀门总数",
+				response.getMustCloseCount() == null ? "接口未返回" : String.valueOf(response.getMustCloseCount()));
+		appendLine(markdown, "影响管段总数",
+				response.getPipesCount() == null ? "接口未返回" : String.valueOf(response.getPipesCount()));
+		appendLine(markdown, "影响用户总数",
+				response.getAffectedUserCount() == null ? "接口未返回" : String.valueOf(response.getAffectedUserCount()));
+		markdown.append("\n");
+
+		StringBuilder requestInfo = new StringBuilder();
+		appendLine(requestInfo, "layerId", response.getLayerId());
+		appendLine(requestInfo, "gid", response.getGid());
+		appendLine(requestInfo, "closeValves", response.getCloseValves());
+		appendLine(requestInfo, "parentAnalysisId", response.getParentAnalysisId());
+		appendLine(requestInfo, "requestUri", response.getRequestUri());
+		if (requestInfo.length() > 0) {
+			markdown.append("### 本次请求参数\n");
+			markdown.append(requestInfo).append("\n");
 		}
 
 		StringBuilder overview = new StringBuilder();
@@ -128,6 +153,12 @@ public class BurstAnalysisNode implements NodeAction {
 			for (String highlight : response.getHighlights()) {
 				markdown.append("- ").append(highlight).append("\n");
 			}
+		}
+		if (response.getRawResponse() != null && !response.getRawResponse().isBlank()) {
+			markdown.append("\n### 原始 JSON 响应\n");
+			markdown.append("```json\n");
+			markdown.append(response.getRawResponse()).append("\n");
+			markdown.append("```\n");
 		}
 		markdown.append("\n### \u53EF\u7EE7\u7EED\u8FFD\u95EE\n");
 		markdown.append("- \u67E5\u770B\u5FC5\u5173\u9600\u95E8\u7684\u8BE6\u7EC6\u4FE1\u606F\n");

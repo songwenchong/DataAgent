@@ -20,6 +20,6 @@ import com.alibaba.cloud.ai.dataagent.dto.burst.BurstAnalysisResponseDTO;
 public interface BurstAnalysisService {
 
 	BurstAnalysisResponseDTO analyze(String query, String multiTurnContext, String routeReason, String agentId,
-			String threadId);
+			String threadId, String sessionId);
 
 }

@@ -16,6 +16,8 @@
 export interface ResultData {
   displayStyle?: ResultDisplayStyleBO;
   resultSet: ResultSetData;
+  referencePreview?: ReferencePreviewData;
+  referenceTargets?: ReferencePreviewData[];
 }
 
 export interface ResultDisplayStyleBO {
@@ -31,6 +33,17 @@ export interface ResultSetData {
   column: string[];
   data: Array<Record<string, string>>;
   errorMsg?: string;
+}
+
+export interface ReferencePreviewData {
+  entityType?: string;
+  rowOrdinal?: number;
+  gid?: string;
+  layerId?: string;
+  displayName?: string;
+  networkName?: string;
+  attributes?: Record<string, string>;
+  supplementalReference?: boolean;
 }
 
 /**

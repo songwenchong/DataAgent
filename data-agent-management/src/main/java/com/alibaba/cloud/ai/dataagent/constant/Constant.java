@@ -30,6 +30,8 @@ public final class Constant {
 
 	public static final String AGENT_ID = "agentId";
 
+	public static final String SESSION_ID = "sessionId";
+
 	public static final String DATASOURCE_ID = "datasourceId";
 
 	public static final String MULTI_TURN_CONTEXT = "MULTI_TURN_CONTEXT";

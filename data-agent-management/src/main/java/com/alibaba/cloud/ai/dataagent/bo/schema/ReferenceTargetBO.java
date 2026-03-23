@@ -15,7 +15,7 @@
  */
 package com.alibaba.cloud.ai.dataagent.bo.schema;
 
-import java.util.List;
+import java.util.Map;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -25,14 +25,22 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ResultBO {
+public class ReferenceTargetBO {
 
-	private ResultSetBO resultSet;
+	private String entityType;
 
-	private DisplayStyleBO displayStyle;
+	private Integer rowOrdinal;
 
-	private ReferencePreviewBO referencePreview;
+	private String gid;
 
-	private List<ReferenceTargetBO> referenceTargets;
+	private String layerId;
+
+	private String displayName;
+
+	private String networkName;
+
+	private Map<String, String> attributes;
+
+	private Boolean supplementalReference;
 
 }

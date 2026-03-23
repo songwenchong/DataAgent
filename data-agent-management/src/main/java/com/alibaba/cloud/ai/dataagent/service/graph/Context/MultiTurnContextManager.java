@@ -122,6 +122,15 @@ public class MultiTurnContextManager {
 		log.info("[CTX_TRACE][MULTI_TURN][DISCARD_PENDING][threadId={}]", threadId);
 	}
 
+	public void clear(String threadId) {
+		if (StringUtils.isBlank(threadId)) {
+			return;
+		}
+		pendingTurns.remove(threadId);
+		history.remove(threadId);
+		log.info("[CTX_TRACE][MULTI_TURN][CLEAR][threadId={}]", threadId);
+	}
+
 	/**
 	 * Restart the latest turn so a new assistant summary can replace it (e.g. after human feedback).
 	 * The last stored turn will be removed and its question reused.
@@ -162,6 +171,15 @@ public class MultiTurnContextManager {
 			.collect(Collectors.joining("\n"));
 		log.info("[CTX_TRACE][MULTI_TURN][BUILD][threadId={}] context=\n{}", threadId, context);
 		return context;
+	}
+
+	public String buildRuntimeSummaryContext(String threadId) {
+		return buildContext(threadId);
+	}
+
+	public int getRuntimeTurnCount(String threadId) {
+		Deque<ConversationTurn> deque = history.get(threadId);
+		return deque == null ? 0 : deque.size();
 	}
 
 	private record ConversationTurn(String userQuestion, String routeScene, String assistantSummary) {

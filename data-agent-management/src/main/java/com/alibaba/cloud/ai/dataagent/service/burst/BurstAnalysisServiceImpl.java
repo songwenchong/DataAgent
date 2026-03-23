@@ -22,7 +22,11 @@ import com.alibaba.cloud.ai.dataagent.service.graph.Context.BurstAnalysisContext
 import com.alibaba.cloud.ai.dataagent.service.graph.Context.BurstAnalysisContextManager.ValveRef;
 import com.alibaba.cloud.ai.dataagent.service.graph.Context.QueryResultContextManager;
 import com.alibaba.cloud.ai.dataagent.service.graph.Context.QueryResultContextManager.QueryResultContext;
+import com.alibaba.cloud.ai.dataagent.service.graph.Context.QueryResultContextManager.ReferenceTarget;
 import com.alibaba.cloud.ai.dataagent.service.graph.Context.ReferenceResolutionContextManager;
+import com.alibaba.cloud.ai.dataagent.service.graph.Context.ReferenceResolutionContextManager.ReferenceContext;
+import com.alibaba.cloud.ai.dataagent.service.graph.Context.SessionSemanticReferenceContextService;
+import com.alibaba.cloud.ai.dataagent.service.graph.Context.SessionSemanticReferenceContextService.SessionSemanticReferenceContext;
 import com.alibaba.cloud.ai.dataagent.util.JsonUtil;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.nio.charset.StandardCharsets;
@@ -61,10 +65,17 @@ public class BurstAnalysisServiceImpl implements BurstAnalysisService {
 			Pattern.compile("(?i)parentAnalysisId\\s*(?:[:=\\uFF1A])\\s*'?([\\w-]+)'?");
 
 	private static final Pattern ORDINAL_PATTERN =
-			Pattern.compile("\u7B2C([\u4E00\u4E8C\u4E09\u56DB\u4E94\u516D\u4E03\u516B\u4E5D\u5341\u767E0-9]+)[\u6761\u4E2A]?");
+			Pattern.compile("\u7B2C([\u4E00\u4E8C\u4E09\u56DB\u4E94\u516D\u4E03\u516B\u4E5D\u5341\u767E0-9]+)[\u6761\u4E2A\u6839]?");
+
+	private static final Pattern DIAMETER_PATTERN =
+			Pattern.compile("\u7BA1\u5F84\\s*(?:\u4E3A|\u662F|=|\u7B49\u4E8E)?\\s*(\\d+(?:\\.\\d+)?)");
+
+	private static final Pattern LENGTH_PATTERN =
+			Pattern.compile("\u7BA1\u957F\\s*(?:\u4E3A|\u662F|=|\u7B49\u4E8E)?\\s*(\\d+(?:\\.\\d+)?)");
 
 	private static final List<String> PIPE_REFERENCE_KEYWORDS = List.of("\u7BA1\u7EBF", "\u7BA1\u9053",
-			"\u7BA1\u6BB5", "\u8FD9\u6761", "\u8BE5\u7BA1\u7EBF", "\u4E0A\u4E00\u6761");
+			"\u7BA1\u6BB5", "\u8FD9\u6761", "\u8FD9\u6839", "\u90A3\u6761", "\u90A3\u6839", "\u8BE5\u7BA1\u7EBF", "\u4E0A\u4E00\u6761",
+			"\u4E0A\u4E00\u6839");
 
 	private static final List<String> VALVE_REFERENCE_KEYWORDS = List.of("\u9600\u95E8", "\u5173\u9600");
 
@@ -73,9 +84,14 @@ public class BurstAnalysisServiceImpl implements BurstAnalysisService {
 			"\u91CD\u65B0\u5173\u9600");
 
 	private static final List<String> QUERY_RESULT_REFERENCE_KEYWORDS = List.of("\u6570\u636E", "\u7ED3\u679C",
-			"\u8BB0\u5F55", "\u7B2C\u4E00\u6761", "\u7B2C\u4E00\u4E2A", "\u8FD9\u6761", "\u8FD9\u4E2A");
+			"\u8BB0\u5F55", "\u7B2C\u4E00\u6761", "\u7B2C\u4E00\u4E2A", "\u7B2C\u4E00\u6839", "\u8FD9\u6761",
+			"\u8FD9\u6839", "\u8FD9\u4E2A", "\u90A3\u6761", "\u90A3\u6839", "\u521A\u624D\u90A3\u6839");
 
 	private static final String BURST_POINT = "\u7206\u7BA1\u70B9";
+
+	private static final List<String> AFFECTED_USER_COUNT_FIELDS = List.of("users_affected", "affected_users",
+			"affected_user_count", "user_count", "total_users_affected", "total_affected_users", "impact_users",
+			"impacted_users", "affectedConsumers", "affected_consumer_count");
 
 	private final WebClient.Builder webClientBuilder;
 
@@ -87,20 +103,24 @@ public class BurstAnalysisServiceImpl implements BurstAnalysisService {
 
 	private final ReferenceResolutionContextManager referenceResolutionContextManager;
 
+	private final SessionSemanticReferenceContextService sessionSemanticReferenceContextService;
+
 	public BurstAnalysisServiceImpl(WebClient.Builder webClientBuilder, DataAgentProperties dataAgentProperties,
 			BurstAnalysisContextManager burstAnalysisContextManager,
 			QueryResultContextManager queryResultContextManager,
-			ReferenceResolutionContextManager referenceResolutionContextManager) {
+			ReferenceResolutionContextManager referenceResolutionContextManager,
+			SessionSemanticReferenceContextService sessionSemanticReferenceContextService) {
 		this.webClientBuilder = webClientBuilder;
 		this.dataAgentProperties = dataAgentProperties;
 		this.burstAnalysisContextManager = burstAnalysisContextManager;
 		this.queryResultContextManager = queryResultContextManager;
 		this.referenceResolutionContextManager = referenceResolutionContextManager;
+		this.sessionSemanticReferenceContextService = sessionSemanticReferenceContextService;
 	}
 
 	@Override
 	public BurstAnalysisResponseDTO analyze(String query, String multiTurnContext, String routeReason,
-			String agentId, String threadId) {
+			String agentId, String threadId, String sessionId) {
 		DataAgentProperties.BurstAnalysis properties = dataAgentProperties.getBurstAnalysis();
 		if (!properties.isEnabled()) {
 			return buildFailure("Burst-analysis integration is disabled by configuration.");
@@ -109,7 +129,7 @@ public class BurstAnalysisServiceImpl implements BurstAnalysisService {
 			return buildFailure("Burst-analysis baseUrl is not configured.");
 		}
 
-		PipeAnalysisRequest request = extractRequest(query, multiTurnContext, threadId);
+		PipeAnalysisRequest request = extractRequest(query, multiTurnContext, threadId, sessionId);
 		if (StringUtils.isBlank(request.layerId()) || StringUtils.isBlank(request.gid())) {
 			return BurstAnalysisResponseDTO.builder()
 				.success(false)
@@ -167,24 +187,31 @@ public class BurstAnalysisServiceImpl implements BurstAnalysisService {
 		return builder.encode().build().toUriString();
 	}
 
-	private PipeAnalysisRequest extractRequest(String query, String multiTurnContext, String threadId) {
-		String combined = StringUtils.defaultString(query) + "\n" + StringUtils.defaultString(multiTurnContext);
-		PipeAnalysisRequest explicitRequest = new PipeAnalysisRequest(extract(combined, LAYER_ID_PATTERN),
-				extract(combined, GID_PATTERN),
-				emptyToNull(extract(combined, CLOSE_VALVES_PATTERN)),
-				emptyToNull(extract(combined, PARENT_ANALYSIS_ID_PATTERN)));
-		if (StringUtils.isNotBlank(explicitRequest.layerId()) && StringUtils.isNotBlank(explicitRequest.gid())) {
-			return explicitRequest;
+	private PipeAnalysisRequest extractRequest(String query, String multiTurnContext, String threadId,
+			String sessionId) {
+		String explicitSource = StringUtils.defaultString(query);
+		PipeAnalysisRequest explicitRequest = new PipeAnalysisRequest(extract(explicitSource, LAYER_ID_PATTERN),
+				extract(explicitSource, GID_PATTERN),
+				emptyToNull(extract(explicitSource, CLOSE_VALVES_PATTERN)),
+				emptyToNull(extract(explicitSource, PARENT_ANALYSIS_ID_PATTERN)));
+		log.info(
+				"[CTX_TRACE][BURST_RESOLVE][SOURCE][threadId={}][sessionId={}] explicitQueryGid={} explicitQueryLayerId={} multiTurnContainsGid={}",
+				threadId, sessionId, StringUtils.defaultString(explicitRequest.gid()),
+				StringUtils.defaultString(explicitRequest.layerId()),
+				StringUtils.isNotBlank(extract(StringUtils.defaultString(multiTurnContext), GID_PATTERN)));
+		if (StringUtils.isNotBlank(explicitRequest.gid())) {
+			return new PipeAnalysisRequest(normalizeLayerId(explicitRequest.layerId(), "pipe"), explicitRequest.gid(),
+					explicitRequest.closeValves(), explicitRequest.parentAnalysisId());
 		}
-		return resolveRequestFromContext(query, explicitRequest, threadId);
+		return resolveRequestFromContext(query, explicitRequest, threadId, sessionId);
 	}
 
 	private PipeAnalysisRequest resolveRequestFromContext(String query, PipeAnalysisRequest explicitRequest,
-			String threadId) {
+			String threadId, String sessionId) {
 		String normalized = StringUtils.defaultString(query).trim();
 		Integer ordinal = parseOrdinal(normalized);
 		PipeAnalysisRequest queryResultRequest = resolveRequestFromLatestQueryResult(normalized, ordinal, explicitRequest,
-				threadId);
+				threadId, sessionId);
 		if (queryResultRequest != explicitRequest) {
 			return queryResultRequest;
 		}
@@ -224,18 +251,37 @@ public class BurstAnalysisServiceImpl implements BurstAnalysisService {
 	}
 
 	private PipeAnalysisRequest resolveRequestFromLatestQueryResult(String normalizedQuery, Integer ordinal,
-			PipeAnalysisRequest explicitRequest, String threadId) {
+			PipeAnalysisRequest explicitRequest, String threadId, String sessionId) {
+		ReferenceContext referenceContext = referenceResolutionContextManager.get(threadId);
+		SessionSemanticReferenceContext sessionContext = sessionSemanticReferenceContextService.resolve(sessionId);
+		PipeAnalysisRequest resolvedFromSessionContext = resolveRequestFromSessionContext(sessionContext, normalizedQuery,
+				ordinal, explicitRequest, threadId, sessionId, referenceContext);
+		if (resolvedFromSessionContext != explicitRequest) {
+			return resolvedFromSessionContext;
+		}
+
 		QueryResultContext resultContext = queryResultContextManager.get(threadId);
 		log.info("[CTX_TRACE][BURST_REF][LOAD_CONTEXT][threadId={}] ordinal={} query={} context={}", threadId, ordinal,
 				normalizedQuery, summarizeQueryResultContext(resultContext));
+		PipeAnalysisRequest resolvedFromThreadContext = resolveRequestFromQueryResultContext(resultContext, normalizedQuery,
+				ordinal, explicitRequest, threadId, referenceContext);
+		if (resolvedFromThreadContext != explicitRequest) {
+			return resolvedFromThreadContext;
+		}
+
+		log.info("[CTX_TRACE][BURST_REF][MISS][threadId={}][sessionId={}] reason=no_usable_query_result_context",
+				threadId, sessionId);
+		return explicitRequest;
+	}
+
+	private PipeAnalysisRequest resolveRequestFromQueryResultContext(QueryResultContext resultContext,
+			String normalizedQuery, Integer ordinal, PipeAnalysisRequest explicitRequest, String threadId,
+			ReferenceContext referenceContext) {
 		if (resultContext == null || resultContext.rows() == null || resultContext.rows().isEmpty()) {
 			log.info("[CTX_TRACE][BURST_REF][MISS][threadId={}] reason=no_query_result_context", threadId);
 			return explicitRequest;
 		}
-
 		String entityType = resultContext.entityType();
-		ReferenceResolutionContextManager.ReferenceContext referenceContext = referenceResolutionContextManager
-			.get(threadId);
 		if (referenceContext != null && StringUtils.isNotBlank(referenceContext.entityType())) {
 			entityType = referenceContext.entityType();
 		}
@@ -247,6 +293,37 @@ public class BurstAnalysisServiceImpl implements BurstAnalysisService {
 		if (!looksLikeLatestResultReference(normalizedQuery, ordinal, entityType)) {
 			log.info("[CTX_TRACE][BURST_REF][MISS][threadId={}] reason=query_not_matched_for_result_reference", threadId);
 			return explicitRequest;
+		}
+
+		if (ordinal != null && ordinal > 0) {
+			ReferenceTarget ordinalTarget = resolveTargetReference(resultContext, ordinal);
+			if (ordinalTarget != null && StringUtils.isNotBlank(ordinalTarget.gid())) {
+				String layerId = normalizeLayerId(ordinalTarget.layerId(), ordinalTarget.entityType());
+				log.info(
+						"[CTX_TRACE][BURST_REF][HIT_TARGET_ORDINAL][threadId={}] ordinal={} entityType={} gid={} layerId={} target={}",
+						threadId, ordinal, StringUtils.defaultIfBlank(ordinalTarget.entityType(), entityType),
+						ordinalTarget.gid(), layerId, ordinalTarget);
+				return new PipeAnalysisRequest(layerId, ordinalTarget.gid(), explicitRequest.closeValves(),
+						explicitRequest.parentAnalysisId());
+			}
+		}
+
+		SemanticReferenceCriteria criteria = buildSemanticReferenceCriteria(normalizedQuery, ordinal, entityType,
+				resultContext.referenceTargets());
+		ReferenceTarget targetReference = resolveSemanticTargetReference(resultContext.referenceTargets(), criteria,
+				normalizedQuery);
+		if (targetReference != null && StringUtils.isNotBlank(targetReference.gid())) {
+			String layerId = normalizeLayerId(targetReference.layerId(), targetReference.entityType());
+			if (StringUtils.isNotBlank(layerId)) {
+				log.info(
+						"[CTX_TRACE][BURST_REF][HIT_TARGET][threadId={}] criteria={} entityType={} gid={} layerId={} target={}",
+						threadId, criteria, StringUtils.defaultIfBlank(targetReference.entityType(), entityType),
+						targetReference.gid(), layerId, targetReference);
+				return new PipeAnalysisRequest(layerId, targetReference.gid(), explicitRequest.closeValves(),
+						explicitRequest.parentAnalysisId());
+			}
+			log.info("[CTX_TRACE][BURST_REF][MISS][threadId={}] reason=target_reference_layerId_missing target={}",
+					threadId, targetReference);
 		}
 
 		Map<String, String> targetRow = resolveTargetRow(resultContext, ordinal);
@@ -264,9 +341,7 @@ public class BurstAnalysisServiceImpl implements BurstAnalysisService {
 		}
 
 		String layerId = extractValue(targetRow, "layerid", "layer_id", "layerId");
-		if (StringUtils.isBlank(layerId) && "pipe".equalsIgnoreCase(StringUtils.defaultString(entityType))) {
-			layerId = String.valueOf(PIPE_LAYER_ID);
-		}
+		layerId = normalizeLayerId(layerId, entityType);
 		if (StringUtils.isBlank(layerId)) {
 			log.info("[CTX_TRACE][BURST_REF][MISS][threadId={}] reason=layerId_missing", threadId);
 			return explicitRequest;
@@ -277,6 +352,251 @@ public class BurstAnalysisServiceImpl implements BurstAnalysisService {
 				threadId, entityType, gid, layerId, StringUtils.defaultString(explicitRequest.closeValves()),
 				StringUtils.defaultString(explicitRequest.parentAnalysisId()));
 		return new PipeAnalysisRequest(layerId, gid, explicitRequest.closeValves(), explicitRequest.parentAnalysisId());
+	}
+
+	private PipeAnalysisRequest resolveRequestFromSessionContext(SessionSemanticReferenceContext sessionContext,
+			String normalizedQuery, Integer ordinal, PipeAnalysisRequest explicitRequest, String threadId, String sessionId,
+			ReferenceContext referenceContext) {
+		log.info("[CTX_TRACE][BURST_REF][LOAD_SESSION_CONTEXT][threadId={}][sessionId={}] ordinal={} query={} context={}",
+				threadId, sessionId, ordinal, normalizedQuery, summarizeSessionContext(sessionContext));
+		if (sessionContext == null || sessionContext.referenceTargets() == null
+				|| sessionContext.referenceTargets().isEmpty()) {
+			log.info("[CTX_TRACE][BURST_REF][MISS][threadId={}][sessionId={}] reason=no_session_semantic_context",
+					threadId, sessionId);
+			return explicitRequest;
+		}
+		String entityType = sessionContext.entityType();
+		if (referenceContext != null && StringUtils.isNotBlank(referenceContext.entityType())) {
+			entityType = referenceContext.entityType();
+		}
+		entityType = inferEntityType(entityType, normalizedQuery);
+		if (!looksLikeLatestResultReference(normalizedQuery, ordinal, entityType)) {
+			log.info(
+					"[CTX_TRACE][BURST_REF][MISS][threadId={}][sessionId={}] reason=session_context_query_not_matched",
+					threadId, sessionId);
+			return explicitRequest;
+		}
+		if (ordinal != null && ordinal > 0) {
+			ReferenceTarget ordinalTarget = resolveTargetReference(sessionContext.referenceTargets(), ordinal);
+			if (ordinalTarget != null && StringUtils.isNotBlank(ordinalTarget.gid())) {
+				String layerId = normalizeLayerId(ordinalTarget.layerId(),
+						StringUtils.defaultIfBlank(ordinalTarget.entityType(), entityType));
+				log.info(
+						"[CTX_TRACE][BURST_REF][HIT_SESSION_ORDINAL][threadId={}][sessionId={}] ordinal={} entityType={} gid={} layerId={} target={}",
+						threadId, sessionId, ordinal,
+						StringUtils.defaultIfBlank(ordinalTarget.entityType(), entityType), ordinalTarget.gid(), layerId,
+						ordinalTarget);
+				return new PipeAnalysisRequest(layerId, ordinalTarget.gid(), explicitRequest.closeValves(),
+						explicitRequest.parentAnalysisId());
+			}
+		}
+		SemanticReferenceCriteria criteria = buildSemanticReferenceCriteria(normalizedQuery, ordinal, entityType,
+				sessionContext.referenceTargets());
+		ReferenceTarget targetReference = resolveSemanticTargetReference(sessionContext.referenceTargets(), criteria,
+				normalizedQuery);
+		if (targetReference == null || StringUtils.isBlank(targetReference.gid())) {
+			log.info("[CTX_TRACE][BURST_REF][MISS][threadId={}][sessionId={}] reason=session_target_missing", threadId,
+					sessionId);
+			return explicitRequest;
+		}
+		String layerId = normalizeLayerId(targetReference.layerId(),
+				StringUtils.defaultIfBlank(targetReference.entityType(), entityType));
+		log.info(
+				"[CTX_TRACE][BURST_REF][HIT_SESSION][threadId={}][sessionId={}] criteria={} entityType={} gid={} layerId={} target={}",
+				threadId, sessionId, criteria, StringUtils.defaultIfBlank(targetReference.entityType(), entityType),
+				targetReference.gid(), layerId, targetReference);
+		return new PipeAnalysisRequest(layerId, targetReference.gid(), explicitRequest.closeValves(),
+				explicitRequest.parentAnalysisId());
+	}
+
+	private ReferenceTarget resolveTargetReference(QueryResultContext context, Integer ordinal) {
+		return resolveTargetReference(context.referenceTargets(), ordinal);
+	}
+
+	private ReferenceTarget resolveTargetReference(List<ReferenceTarget> referenceTargets, Integer ordinal) {
+		if (referenceTargets == null || referenceTargets.isEmpty()) {
+			return null;
+		}
+		if (ordinal == null || ordinal <= 0) {
+			return referenceTargets.get(0);
+		}
+		if (ordinal > referenceTargets.size()) {
+			return null;
+		}
+		return referenceTargets.get(ordinal - 1);
+	}
+
+	private ReferenceTarget resolveSemanticTargetReference(List<ReferenceTarget> referenceTargets,
+			SemanticReferenceCriteria criteria, String normalizedQuery) {
+		if (referenceTargets == null || referenceTargets.isEmpty()) {
+			return null;
+		}
+		if (criteria == null) {
+			return resolveTargetReference(referenceTargets, null);
+		}
+		List<ScoredReferenceTarget> scoredTargets = new ArrayList<>();
+		for (ReferenceTarget target : referenceTargets) {
+			int score = scoreTarget(target, criteria, normalizedQuery);
+			if (score >= 0) {
+				scoredTargets.add(new ScoredReferenceTarget(target, score));
+			}
+		}
+		if (scoredTargets.isEmpty()) {
+			return null;
+		}
+		scoredTargets.sort((left, right) -> Integer.compare(right.score(), left.score()));
+		ScoredReferenceTarget best = scoredTargets.get(0);
+		if (best.score() <= 0) {
+			if (criteria.ordinal() != null && criteria.ordinal() > 0) {
+				return resolveTargetReference(referenceTargets, criteria.ordinal());
+			}
+			return referenceTargets.size() == 1 ? referenceTargets.get(0) : null;
+		}
+		if (scoredTargets.size() > 1 && best.score() == scoredTargets.get(1).score()) {
+			log.info("[CTX_TRACE][BURST_RESOLVE][MATCH] ambiguousMatch criteria={} candidates={}", criteria,
+					scoredTargets.stream().limit(3).toList());
+			return null;
+		}
+		log.info("[CTX_TRACE][BURST_RESOLVE][MATCH] matched criteria={} target={} score={}", criteria, best.target(),
+				best.score());
+		return best.target();
+	}
+
+	private int scoreTarget(ReferenceTarget target, SemanticReferenceCriteria criteria, String normalizedQuery) {
+		if (target == null) {
+			return -1;
+		}
+		String targetEntityType = StringUtils.defaultIfBlank(target.entityType(), criteria.entityType());
+		if (StringUtils.isNotBlank(criteria.entityType()) && StringUtils.isNotBlank(targetEntityType)
+				&& !StringUtils.equalsIgnoreCase(criteria.entityType(), targetEntityType)) {
+			return -1;
+		}
+		Map<String, String> attributes = target.attributes();
+		int score = 0;
+		if (criteria.ordinal() != null) {
+			if (target.rowOrdinal() != criteria.ordinal()) {
+				score -= 20;
+			}
+			else {
+				score += 120;
+			}
+		}
+		if (StringUtils.isNotBlank(criteria.diameter())) {
+			String diameter = normalizeComparableNumber(extractValue(attributes, "管径", "diameter"));
+			if (!StringUtils.equals(criteria.diameter(), diameter)) {
+				return -1;
+			}
+			score += 180;
+		}
+		if (StringUtils.isNotBlank(criteria.length())) {
+			String length = normalizeComparableNumber(extractValue(attributes, "管长", "length"));
+			if (!StringUtils.equals(criteria.length(), length)) {
+				return -1;
+			}
+			score += 90;
+		}
+		if (StringUtils.isNotBlank(criteria.material())) {
+			String material = StringUtils.defaultString(extractValue(attributes, "管材", "material"));
+			if (!StringUtils.containsIgnoreCase(material, criteria.material())) {
+				return -1;
+			}
+			score += 140;
+		}
+		if (StringUtils.isNotBlank(criteria.networkName())) {
+			String networkName = StringUtils.defaultString(
+					StringUtils.defaultIfBlank(target.networkName(), extractValue(attributes, "networkName", "network_name", "管网名称", "所属管网")));
+			if (!StringUtils.containsIgnoreCase(networkName, criteria.networkName())) {
+				return -1;
+			}
+			score += 80;
+		}
+		if (StringUtils.isNotBlank(criteria.displayName())) {
+			String displayName = StringUtils.defaultString(target.displayName());
+			if (!StringUtils.containsIgnoreCase(displayName, criteria.displayName())) {
+				return -1;
+			}
+			score += 70;
+		}
+		if (score == 0 && StringUtils.isNotBlank(normalizedQuery) && StringUtils.isNotBlank(target.displayName())
+				&& StringUtils.containsIgnoreCase(normalizedQuery, target.displayName())) {
+			score += 60;
+		}
+		return score;
+	}
+
+	private SemanticReferenceCriteria buildSemanticReferenceCriteria(String normalizedQuery, Integer ordinal,
+			String entityType, List<ReferenceTarget> referenceTargets) {
+		return new SemanticReferenceCriteria(ordinal, entityType, extractComparableNumber(normalizedQuery, DIAMETER_PATTERN),
+				extractMatchingAttributeValue(normalizedQuery, referenceTargets, "管材", "material"),
+				extractComparableNumber(normalizedQuery, LENGTH_PATTERN),
+				extractMatchingNetworkName(normalizedQuery, referenceTargets),
+				extractMatchingDisplayName(normalizedQuery, referenceTargets));
+	}
+
+	private String extractComparableNumber(String query, Pattern pattern) {
+		String token = extract(query, pattern);
+		return normalizeComparableNumber(token);
+	}
+
+	private String normalizeComparableNumber(String value) {
+		String normalized = StringUtils.trimToEmpty(value);
+		if (StringUtils.isBlank(normalized)) {
+			return "";
+		}
+		if (normalized.endsWith(".0")) {
+			normalized = normalized.substring(0, normalized.length() - 2);
+		}
+		return normalized;
+	}
+
+	private String extractMatchingAttributeValue(String query, List<ReferenceTarget> referenceTargets, String... keys) {
+		if (StringUtils.isBlank(query) || referenceTargets == null || referenceTargets.isEmpty()) {
+			return "";
+		}
+		for (ReferenceTarget target : referenceTargets) {
+			String value = extractValue(target == null ? null : target.attributes(), keys);
+			if (StringUtils.isNotBlank(value) && query.contains(value.toLowerCase())) {
+				return value;
+			}
+		}
+		return "";
+	}
+
+	private String extractMatchingNetworkName(String query, List<ReferenceTarget> referenceTargets) {
+		if (StringUtils.isBlank(query) || referenceTargets == null || referenceTargets.isEmpty()) {
+			return "";
+		}
+		for (ReferenceTarget target : referenceTargets) {
+			if (target == null || StringUtils.isBlank(target.networkName())) {
+				continue;
+			}
+			if (query.contains(target.networkName().toLowerCase())) {
+				return target.networkName();
+			}
+		}
+		return "";
+	}
+
+	private String extractMatchingDisplayName(String query, List<ReferenceTarget> referenceTargets) {
+		if (StringUtils.isBlank(query) || referenceTargets == null || referenceTargets.isEmpty()) {
+			return "";
+		}
+		for (ReferenceTarget target : referenceTargets) {
+			if (target == null || StringUtils.isBlank(target.displayName())) {
+				continue;
+			}
+			if (query.contains(target.displayName().toLowerCase())) {
+				return target.displayName();
+			}
+		}
+		return "";
+	}
+
+	private String normalizeLayerId(String layerId, String entityType) {
+		if ("pipe".equalsIgnoreCase(StringUtils.defaultString(entityType))) {
+			return String.valueOf(PIPE_LAYER_ID);
+		}
+		return StringUtils.trimToEmpty(layerId);
 	}
 
 	private String extract(String content, Pattern pattern) {
@@ -290,7 +610,6 @@ public class BurstAnalysisServiceImpl implements BurstAnalysisService {
 
 	private BurstAnalysisResponseDTO buildSuccessResponse(PipeAnalysisRequest request, String requestUri,
 			String responseBody, String routeReason, String threadId) {
-		String prettyResponse = prettyJson(responseBody);
 		String summary = extractSummary(responseBody);
 		List<String> highlights = extractHighlights(responseBody, routeReason);
 		ParsedBurstResult parsedResult = parseBurstResult(responseBody);
@@ -308,13 +627,14 @@ public class BurstAnalysisServiceImpl implements BurstAnalysisService {
 			.totalValveCount(parsedResult.totalValveCount())
 			.affectedAreaDesc(parsedResult.affectedAreaDesc())
 			.pipesCount(parsedResult.pipesCount())
+			.affectedUserCount(parsedResult.affectedUserCount())
 			.pipesSummary(parsedResult.pipesSummary())
 			.mustCloseValves(parsedResult.mustCloseValves())
 			.downstreamValveIds(parsedResult.downstreamValveIds())
 			.closeValves(StringUtils.defaultString(request.closeValves()))
 			.parentAnalysisId(StringUtils.defaultString(request.parentAnalysisId()))
 			.requestUri(requestUri)
-			.rawResponse(prettyResponse)
+			.rawResponse(truncateRawResponse(responseBody))
 			.highlights(highlights)
 			.build();
 	}
@@ -395,28 +715,62 @@ public class BurstAnalysisServiceImpl implements BurstAnalysisService {
 				downstreamArray.forEach(node -> downstreamValveIds.add(node.asText("")));
 			}
 
+			BurstCountFieldMatch mustCloseCount = resolveIntegerField(payload, "must_close_count");
+			BurstCountFieldMatch totalValveCount = resolveIntegerField(payload, "total_valves_affected");
+			BurstCountFieldMatch pipesCount = resolveIntegerField(payload, "pipes_affected");
+			BurstCountFieldMatch affectedUserCount = resolveIntegerField(payload,
+					AFFECTED_USER_COUNT_FIELDS.toArray(new String[0]));
+			log.info(
+					"[CTX_TRACE][BURST_RESULT][PARSE] analysisId={} mustCloseCount={}({}) pipesCount={}({}) affectedUserCount={}({}) totalValveCount={}({})",
+					firstText(payload, "analysis_id"), mustCloseCount.value(), mustCloseCount.fieldName(), pipesCount.value(),
+					pipesCount.fieldName(), affectedUserCount.value(), affectedUserCount.fieldName(), totalValveCount.value(),
+					totalValveCount.fieldName());
+
 			return new ParsedBurstResult(firstText(payload, "analysis_id"),
 					translateAnalysisType(firstText(payload, "analysis_type")),
 					firstText(payload.path("network"), "name"),
 					firstText(payload, "valve_plan"),
-					intValue(payload.path("must_close_count")),
-					intValue(payload.path("total_valves_affected")),
+					mustCloseCount.value(),
+					totalValveCount.value(),
 					firstText(payload, "impact_area"),
-					intValue(payload.path("pipes_affected")),
+					pipesCount.value(),
+					affectedUserCount.value(),
 					firstText(payload, "pipes_summary"),
 					mustCloseValves, downstreamValveIds);
 		}
 		catch (Exception ex) {
 			log.debug("Failed to parse structured burst-analysis result", ex);
-			return new ParsedBurstResult("", "", "", "", null, null, "", null, "", List.of(), List.of());
+			return new ParsedBurstResult("", "", "", "", null, null, "", null, null, "", List.of(), List.of());
 		}
+	}
+
+	private BurstCountFieldMatch resolveIntegerField(JsonNode payload, String... fieldNames) {
+		if (payload == null || payload.isMissingNode() || payload.isNull() || fieldNames == null) {
+			return new BurstCountFieldMatch(null, "");
+		}
+		for (String fieldName : fieldNames) {
+			Integer value = intValue(payload.path(fieldName));
+			if (value != null) {
+				return new BurstCountFieldMatch(value, fieldName);
+			}
+		}
+		return new BurstCountFieldMatch(null, "");
 	}
 
 	private Integer intValue(JsonNode node) {
 		if (node == null || node.isMissingNode() || node.isNull()) {
 			return null;
 		}
-		return node.isNumber() ? node.asInt() : null;
+		if (node.isNumber()) {
+			return node.asInt();
+		}
+		if (node.isTextual()) {
+			String text = StringUtils.trimToEmpty(node.asText());
+			if (text.matches("-?\\d+")) {
+				return Integer.parseInt(text);
+			}
+		}
+		return null;
 	}
 
 	private String translateAnalysisType(String analysisType) {
@@ -603,8 +957,11 @@ public class BurstAnalysisServiceImpl implements BurstAnalysisService {
 		if (rows == null || rows.isEmpty()) {
 			return null;
 		}
-		if (ordinal == null || ordinal <= 0 || ordinal > rows.size()) {
+		if (ordinal == null || ordinal <= 0) {
 			return rows.get(0);
+		}
+		if (ordinal > rows.size()) {
+			return null;
 		}
 		return rows.get(ordinal - 1);
 	}
@@ -644,6 +1001,19 @@ public class BurstAnalysisServiceImpl implements BurstAnalysisService {
 		return "";
 	}
 
+	private String inferEntityType(String currentEntityType, String normalizedQuery) {
+		if (StringUtils.isNotBlank(currentEntityType)) {
+			return currentEntityType;
+		}
+		if (containsAny(normalizedQuery, PIPE_REFERENCE_KEYWORDS) || normalizedQuery.contains("\u7206\u7BA1")) {
+			return "pipe";
+		}
+		if (containsAny(normalizedQuery, VALVE_REFERENCE_KEYWORDS)) {
+			return "valve";
+		}
+		return "";
+	}
+
 	private String extractValue(Map<String, String> row, String... candidateKeys) {
 		if (row == null || row.isEmpty() || candidateKeys == null) {
 			return "";
@@ -665,10 +1035,29 @@ public class BurstAnalysisServiceImpl implements BurstAnalysisService {
 		}
 		List<Map<String, String>> rows = context.rows();
 		List<Map<String, String>> sampleRows = rows == null ? List.of() : rows.stream().limit(3).toList();
+		List<ReferenceTarget> referenceTargets = context.referenceTargets();
+		List<ReferenceTarget> sampleTargets = referenceTargets == null ? List.of()
+				: referenceTargets.stream().limit(3).toList();
 		return "entityType=" + StringUtils.defaultString(context.entityType()) + ", tableName="
 				+ StringUtils.defaultString(context.tableName()) + ", columns=" + context.columns() + ", rowCount="
 				+ (rows == null ? 0 : rows.size()) + ", sampleRows="
-				+ StringUtils.abbreviate(String.valueOf(sampleRows), 2000);
+				+ StringUtils.abbreviate(String.valueOf(sampleRows), 1200) + ", referenceTargetCount="
+				+ (referenceTargets == null ? 0 : referenceTargets.size()) + ", sampleReferenceTargets="
+				+ StringUtils.abbreviate(String.valueOf(sampleTargets), 1200);
+	}
+
+	private String summarizeSessionContext(SessionSemanticReferenceContext context) {
+		if (context == null) {
+			return "context=null";
+		}
+		List<ReferenceTarget> referenceTargets = context.referenceTargets();
+		List<ReferenceTarget> sampleTargets = referenceTargets == null ? List.of()
+				: referenceTargets.stream().limit(3).toList();
+		return "entityType=" + StringUtils.defaultString(context.entityType()) + ", source="
+				+ StringUtils.defaultString(context.source()) + ", querySummary="
+				+ StringUtils.abbreviate(StringUtils.defaultString(context.querySummary()), 300)
+				+ ", referenceTargetCount=" + (referenceTargets == null ? 0 : referenceTargets.size())
+				+ ", sampleReferenceTargets=" + StringUtils.abbreviate(String.valueOf(sampleTargets), 1200);
 	}
 
 	private boolean containsAny(String text, List<String> keywords) {
@@ -688,9 +1077,20 @@ public class BurstAnalysisServiceImpl implements BurstAnalysisService {
 	private record PipeAnalysisRequest(String layerId, String gid, String closeValves, String parentAnalysisId) {
 	}
 
+	private record SemanticReferenceCriteria(Integer ordinal, String entityType, String diameter, String material,
+			String length, String networkName, String displayName) {
+	}
+
+	private record ScoredReferenceTarget(ReferenceTarget target, int score) {
+	}
+
+	private record BurstCountFieldMatch(Integer value, String fieldName) {
+	}
+
 	private record ParsedBurstResult(String analysisId, String analysisType, String networkName,
 			String valvePlanSummary, Integer mustCloseCount, Integer totalValveCount, String affectedAreaDesc,
-			Integer pipesCount, String pipesSummary, List<String> mustCloseValves, List<String> downstreamValveIds) {
+			Integer pipesCount, Integer affectedUserCount, String pipesSummary, List<String> mustCloseValves,
+			List<String> downstreamValveIds) {
 	}
 
 }
