@@ -19,6 +19,9 @@ import com.alibaba.cloud.ai.dataagent.dto.prompt.IntentRecognitionOutputDTO;
 import com.alibaba.cloud.ai.dataagent.enums.TextType;
 import com.alibaba.cloud.ai.dataagent.prompt.PromptHelper;
 import com.alibaba.cloud.ai.dataagent.service.graph.Context.ClarificationContextManager;
+import com.alibaba.cloud.ai.dataagent.service.graph.Context.QueryResultContextManager.ReferenceTarget;
+import com.alibaba.cloud.ai.dataagent.service.graph.Context.SessionSemanticReferenceContextService;
+import com.alibaba.cloud.ai.dataagent.service.graph.Context.SessionSemanticReferenceContextService.SessionSemanticReferenceContext;
 import com.alibaba.cloud.ai.dataagent.service.llm.LlmService;
 import com.alibaba.cloud.ai.dataagent.util.ChatResponseUtil;
 import com.alibaba.cloud.ai.dataagent.util.FluxUtil;
@@ -40,6 +43,7 @@ import reactor.core.publisher.Flux;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.INPUT_KEY;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.INTENT_RECOGNITION_NODE_OUTPUT;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.MULTI_TURN_CONTEXT;
+import static com.alibaba.cloud.ai.dataagent.constant.Constant.SESSION_ID;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.TRACE_THREAD_ID;
 
 @Slf4j
@@ -89,18 +93,29 @@ public class IntentRecognitionNode implements NodeAction {
 
 	private final ClarificationContextManager clarificationContextManager;
 
+	private final SessionSemanticReferenceContextService sessionSemanticReferenceContextService;
+
 	@Override
 	public Map<String, Object> apply(OverAllState state) throws Exception {
 		String userInput = StateUtil.getStringValue(state, INPUT_KEY, "");
 		String threadId = StateUtil.getStringValue(state, TRACE_THREAD_ID, "");
-		log.info("User input for intent recognition: {}", userInput);
+		String sessionId = StateUtil.getStringValue(state, SESSION_ID, "");
+		String multiTurn = StateUtil.getStringValue(state, MULTI_TURN_CONTEXT, "");
+		SessionSemanticReferenceContext sessionSemanticContext = sessionSemanticReferenceContextService.resolve(sessionId);
+		log.info(
+				"[CTX_TRACE][INTENT_CONTEXT][INPUT][threadId={}][sessionId={}] query={} multiTurnLength={} multiTurn={} ",
+				threadId, sessionId, StringUtils.abbreviate(userInput, 300), multiTurn.length(),
+				StringUtils.abbreviate(StringUtils.defaultString(multiTurn), 1200));
+		log.info("[CTX_TRACE][INTENT_CONTEXT][SEMANTIC_TARGET][threadId={}][sessionId={}] {}",
+				threadId, sessionId, summarizeSessionSemanticContext(sessionSemanticContext));
+		log.debug("[CTX_TRACE][INTENT_CONTEXT][FULL][threadId={}][sessionId={}] multiTurn=\n{}",
+				threadId, sessionId, StringUtils.defaultString(multiTurn));
 
 		IntentRecognitionOutputDTO ruleBasedOutput = buildRuleBasedOutput(threadId, userInput);
 		if (ruleBasedOutput != null) {
 			return Map.of(INTENT_RECOGNITION_NODE_OUTPUT, ruleBasedOutput);
 		}
 
-		String multiTurn = StateUtil.getStringValue(state, MULTI_TURN_CONTEXT, "");
 		String prompt = PromptHelper.buildIntentRecognitionPrompt(multiTurn, userInput);
 		log.debug("Built intent recognition prompt:\n{}", prompt);
 
@@ -220,6 +235,20 @@ public class IntentRecognitionNode implements NodeAction {
 
 	private String normalize(String text) {
 		return StringUtils.trimToEmpty(text).toLowerCase();
+	}
+
+	private String summarizeSessionSemanticContext(SessionSemanticReferenceContext sessionSemanticContext) {
+		if (sessionSemanticContext == null || sessionSemanticContext.referenceTargets() == null
+				|| sessionSemanticContext.referenceTargets().isEmpty()) {
+			return "hasSessionSemanticContext=false targetCount=0";
+		}
+		List<ReferenceTarget> targets = sessionSemanticContext.referenceTargets();
+		ReferenceTarget firstTarget = targets.get(0);
+		return "hasSessionSemanticContext=true entityType="
+				+ StringUtils.defaultString(sessionSemanticContext.entityType()) + " source="
+				+ StringUtils.defaultString(sessionSemanticContext.source()) + " targetCount=" + targets.size()
+				+ " querySummary=" + StringUtils.abbreviate(StringUtils.defaultString(sessionSemanticContext.querySummary()), 300)
+				+ " firstTarget=" + StringUtils.abbreviate(String.valueOf(firstTarget), 400);
 	}
 
 }

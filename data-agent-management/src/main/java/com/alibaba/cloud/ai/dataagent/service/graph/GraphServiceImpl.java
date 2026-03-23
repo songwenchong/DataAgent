@@ -23,6 +23,7 @@ import static com.alibaba.cloud.ai.dataagent.constant.Constant.INPUT_KEY;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.IS_ONLY_NL2SQL;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.LIGHTWEIGHT_SQL_RESULT_MODE;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.MULTI_TURN_CONTEXT;
+import static com.alibaba.cloud.ai.dataagent.constant.Constant.ORIGINAL_INPUT_KEY;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.ROUTE_SCENE_BURST_ANALYSIS;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.ROUTE_SCENE_DEFAULT_GRAPH;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.SESSION_ID;
@@ -157,6 +158,7 @@ public class GraphServiceImpl implements GraphService {
 						Map.of(IS_ONLY_NL2SQL, false, INPUT_KEY, graphRequest.getQuery(), AGENT_ID,
 								graphRequest.getAgentId(), HUMAN_REVIEW_ENABLED, false,
 								LIGHTWEIGHT_SQL_RESULT_MODE, true, MULTI_TURN_CONTEXT, "",
+								ORIGINAL_INPUT_KEY, graphRequest.getQuery(),
 								TRACE_THREAD_ID, graphRequest.getThreadId(), SESSION_ID,
 								graphRequest.getSessionId() == null ? "" : graphRequest.getSessionId()),
 						RunnableConfig.builder().threadId(graphRequest.getThreadId()).build())
@@ -508,7 +510,8 @@ public class GraphServiceImpl implements GraphService {
 		multiTurnContextManager.beginTurn(threadId, query);
 		Flux<NodeOutput> nodeOutputFlux = compiledGraph.stream(
 				Map.of(IS_ONLY_NL2SQL, nl2sqlOnly, INPUT_KEY, query, AGENT_ID, agentId, HUMAN_REVIEW_ENABLED,
-						humanReviewEnabled, MULTI_TURN_CONTEXT, multiTurnContext, TRACE_THREAD_ID, threadId,
+						humanReviewEnabled, MULTI_TURN_CONTEXT, multiTurnContext, ORIGINAL_INPUT_KEY, query,
+						TRACE_THREAD_ID, threadId,
 						SESSION_ID, graphRequest.getSessionId() == null ? "" : graphRequest.getSessionId()),
 				RunnableConfig.builder().threadId(threadId).build());
 		subscribeToFlux(context, nodeOutputFlux, graphRequest, agentId, threadId);

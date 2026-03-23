@@ -28,6 +28,8 @@ public final class Constant {
 
 	public static final String INPUT_KEY = "input";
 
+	public static final String ORIGINAL_INPUT_KEY = "originalInput";
+
 	public static final String AGENT_ID = "agentId";
 
 	public static final String SESSION_ID = "sessionId";

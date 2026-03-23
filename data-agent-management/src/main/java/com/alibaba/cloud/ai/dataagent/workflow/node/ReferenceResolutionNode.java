@@ -18,7 +18,6 @@ package com.alibaba.cloud.ai.dataagent.workflow.node;
 import com.alibaba.cloud.ai.dataagent.dto.prompt.ReferenceResolutionOutputDTO;
 import com.alibaba.cloud.ai.dataagent.service.graph.Context.BurstAnalysisContextManager;
 import com.alibaba.cloud.ai.dataagent.service.graph.Context.BurstAnalysisContextManager.BurstAnalysisContext;
-import com.alibaba.cloud.ai.dataagent.service.graph.Context.QueryResultContextManager.ReferenceTarget;
 import com.alibaba.cloud.ai.dataagent.service.graph.Context.ReferenceResolutionContextManager;
 import com.alibaba.cloud.ai.dataagent.service.graph.Context.ReferenceResolutionContextManager.ReferenceContext;
 import com.alibaba.cloud.ai.dataagent.service.graph.Context.SessionSemanticReferenceContextService;
@@ -56,10 +55,10 @@ import static com.alibaba.cloud.ai.dataagent.constant.Constant.TRACE_THREAD_ID;
 public class ReferenceResolutionNode implements NodeAction {
 
 	private static final Pattern ORDINAL_PATTERN =
-			Pattern.compile("\u7B2C([\u4E00\u4E8C\u4E09\u56DB\u4E94\u516D\u4E03\u516B\u4E5D\u5341\u767E0-9]+)[\u6761\u4E2A\u9879\u6839]?"); // NOPMD
+			Pattern.compile("\u7B2C\\s*([\u4E00\u4E8C\u4E09\u56DB\u4E94\u516D\u4E03\u516B\u4E5D\u5341\u767E0-9\\s]+)\\s*[\u6761\u4E2A\u9879\u6839]?"); // NOPMD
 
 	private static final List<String> PIPE_ENTITY_KEYWORDS = List.of("\u7BA1\u7EBF", "\u7BA1\u9053",
-			"\u7BA1\u6BB5");
+			"\u7BA1\u6BB5", "\u7BA1\u5B50");
 
 	private static final List<String> VALVE_ENTITY_KEYWORDS = List.of("\u9600\u95E8");
 
@@ -76,6 +75,9 @@ public class ReferenceResolutionNode implements NodeAction {
 			"\u70ED\u529B\u7BA1\u7F51", "\u71C3\u6C14\u7BA1\u7F51", "\u6D88\u9632\u7BA1\u7F51",
 			"\u7BA1\u5F84", "\u9644\u8FD1", "\u76F8\u4EA4", "\u5305\u542B", "\u5927\u4E8E", "\u5C0F\u4E8E",
 			">", "<");
+
+	private static final List<String> PIPE_ATTRIBUTE_KEYWORDS = List.of("\u7BA1\u5F84", "\u7BA1\u957F", "\u7BA1\u6750",
+			"\u6750\u8D28");
 
 	private static final String CLARIFY_MESSAGE =
 			"\u8BF7\u5148\u660E\u786E\u8981\u67E5\u770B\u7684\u5BF9\u8C61\uFF0C\u6216\u8005\u5148\u6267\u884C\u4E00\u6B21\u76F8\u5173\u7684\u7BA1\u7EBF\u3001\u9600\u95E8\u67E5\u8BE2\u3002";
@@ -236,9 +238,7 @@ public class ReferenceResolutionNode implements NodeAction {
 		return containsAny(normalizedInput, PIPE_ENTITY_KEYWORDS)
 				|| containsAny(normalizedInput, PRONOUN_REFERENCE_KEYWORDS)
 				|| StringUtils.contains(normalizedInput, "\u7b2c\u4e00\u6839")
-				|| normalizedInput.contains("\u7ba1\u5f84")
-				|| normalizedInput.contains("\u7ba1\u6750")
-				|| normalizedInput.contains("\u7ba1\u957f");
+				|| containsAny(normalizedInput, PIPE_ATTRIBUTE_KEYWORDS);
 	}
 
 	private boolean prefersSessionSemanticContext(String normalizedInput, String entityType) {
@@ -247,9 +247,7 @@ public class ReferenceResolutionNode implements NodeAction {
 		}
 		return containsAny(normalizedInput, PIPE_ENTITY_KEYWORDS)
 				|| normalizedInput.contains("\u7206\u7BA1")
-				|| normalizedInput.contains("\u7ba1\u5f84")
-				|| normalizedInput.contains("\u7ba1\u6750")
-				|| normalizedInput.contains("\u7ba1\u957f");
+				|| containsAny(normalizedInput, PIPE_ATTRIBUTE_KEYWORDS);
 	}
 
 	private String buildBurstReferenceSummary(BurstAnalysisContext burstAnalysisContext) {
@@ -267,63 +265,14 @@ public class ReferenceResolutionNode implements NodeAction {
 		int targetCount = sessionSemanticContext.referenceTargets() == null ? 0
 				: sessionSemanticContext.referenceTargets().size();
 		String entityLabel = toEntityLabel(sessionSemanticContext.entityType());
-		ReferenceTarget selectedTarget = selectReferenceTarget(sessionSemanticContext.referenceTargets(), ordinal);
-		if (selectedTarget == null) {
-			return "已锁定上一轮" + entityLabel + "结果，共 " + targetCount + " 条，可继续按顺序追问第几条";
+		if (targetCount <= 0) {
+			return "已锁定上一轮" + entityLabel + "结果，可继续按顺序或属性追问目标";
 		}
-		return "已锁定上一轮" + entityLabel + "结果，共 " + targetCount + " 条，当前目标为第 "
-				+ selectedTarget.rowOrdinal() + " 条" + buildTargetSemanticSummary(selectedTarget);
-	}
-
-	private ReferenceTarget selectReferenceTarget(List<ReferenceTarget> targets, Integer ordinal) {
-		if (targets == null || targets.isEmpty()) {
-			return null;
+		if (ordinal != null && ordinal > 0 && ordinal <= targetCount) {
+			return "已锁定上一轮" + entityLabel + "结果，共 " + targetCount + " 条，可继续围绕第 " + ordinal
+					+ " 条或符合条件的目标继续追问";
 		}
-		if (ordinal == null || ordinal <= 0 || ordinal > targets.size()) {
-			return targets.get(0);
-		}
-		return targets.get(ordinal - 1);
-	}
-
-	private String buildTargetSemanticSummary(ReferenceTarget target) {
-		if (target == null) {
-			return "";
-		}
-		Map<String, String> attributes = target.attributes();
-		if (attributes == null || attributes.isEmpty()) {
-			return "";
-		}
-		String diameter = StringUtils.defaultIfBlank(findIgnoreCase(attributes, "管径"), "");
-		String material = StringUtils.defaultIfBlank(findIgnoreCase(attributes, "管材"), "");
-		String length = StringUtils.defaultIfBlank(findIgnoreCase(attributes, "管长"), "");
-		StringBuilder summary = new StringBuilder();
-		appendSemanticPart(summary, "管径", diameter);
-		appendSemanticPart(summary, "管材", material);
-		appendSemanticPart(summary, "管长", length);
-		return summary.isEmpty() ? "" : "（" + summary + "）";
-	}
-
-	private void appendSemanticPart(StringBuilder summary, String label, String value) {
-		if (StringUtils.isBlank(value)) {
-			return;
-		}
-		if (!summary.isEmpty()) {
-			summary.append("，");
-		}
-		summary.append(label).append("=").append(value);
-	}
-
-	private String findIgnoreCase(Map<String, String> attributes, String key) {
-		if (attributes == null || attributes.isEmpty() || StringUtils.isBlank(key)) {
-			return "";
-		}
-		for (Map.Entry<String, String> entry : attributes.entrySet()) {
-			if (entry.getKey() != null && entry.getKey().equalsIgnoreCase(key)
-					&& StringUtils.isNotBlank(entry.getValue())) {
-				return entry.getValue().trim();
-			}
-		}
-		return "";
+		return "已锁定上一轮" + entityLabel + "结果，共 " + targetCount + " 条，可继续按顺序或属性追问目标";
 	}
 
 	private String toEntityLabel(String entityType) {
@@ -378,7 +327,7 @@ public class ReferenceResolutionNode implements NodeAction {
 		if (!matcher.find()) {
 			return null;
 		}
-		String token = matcher.group(1);
+		String token = StringUtils.deleteWhitespace(matcher.group(1));
 		if (token != null && token.chars().allMatch(Character::isDigit)) {
 			return Integer.parseInt(token);
 		}

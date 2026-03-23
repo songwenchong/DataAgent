@@ -36,6 +36,7 @@ import static com.alibaba.cloud.ai.dataagent.constant.Constant.AGENT_ID;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.BURST_ANALYSIS_API_OUTPUT;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.INPUT_KEY;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.MULTI_TURN_CONTEXT;
+import static com.alibaba.cloud.ai.dataagent.constant.Constant.ORIGINAL_INPUT_KEY;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.ROUTE_REASON;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.SESSION_ID;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.TRACE_THREAD_ID;
@@ -56,9 +57,10 @@ public class BurstAnalysisNode implements NodeAction {
 		String threadId = StateUtil.getStringValue(state, TRACE_THREAD_ID, "");
 		String sessionId = StateUtil.getStringValue(state, SESSION_ID, "");
 		String userInput = StateUtil.getStringValue(state, INPUT_KEY, "");
+		String originalUserInput = StateUtil.getStringValue(state, ORIGINAL_INPUT_KEY, userInput);
 		String multiTurnContext = StateUtil.getStringValue(state, MULTI_TURN_CONTEXT, "");
 		String routeReason = StateUtil.getStringValue(state, ROUTE_REASON, "");
-		BurstAnalysisResponseDTO response = burstAnalysisService.analyze(userInput, multiTurnContext, routeReason,
+		BurstAnalysisResponseDTO response = burstAnalysisService.analyze(originalUserInput, multiTurnContext, routeReason,
 				agentId, threadId, sessionId);
 		String message = buildMessage(response);
 
