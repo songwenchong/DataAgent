@@ -478,6 +478,8 @@ public class GraphServiceImpl implements GraphService {
 		context.setSpan(span);
 
 		String multiTurnContext = multiTurnContextManager.buildContext(threadId);
+		log.info("[CTX_TRACE][MULTI_TURN][GRAPH_START][threadId={}] query={} context=\n{}", threadId, query,
+				multiTurnContext);
 		multiTurnContextManager.beginTurn(threadId, query);
 		Flux<NodeOutput> nodeOutputFlux = compiledGraph.stream(
 				Map.of(IS_ONLY_NL2SQL, nl2sqlOnly, INPUT_KEY, query, AGENT_ID, agentId, HUMAN_REVIEW_ENABLED,
@@ -509,9 +511,12 @@ public class GraphServiceImpl implements GraphService {
 		if (graphRequest.isRejectedPlan()) {
 			multiTurnContextManager.restartLastTurn(threadId);
 		}
+		String multiTurnContext = multiTurnContextManager.buildContext(threadId);
+		log.info("[CTX_TRACE][MULTI_TURN][GRAPH_FEEDBACK_RESUME][threadId={}] rejectedPlan={} feedback={} context=\n{}",
+				threadId, graphRequest.isRejectedPlan(), feedbackContent, multiTurnContext);
 		Map<String, Object> stateUpdate = new HashMap<>();
 		stateUpdate.put(HUMAN_FEEDBACK_DATA, feedbackData);
-		stateUpdate.put(MULTI_TURN_CONTEXT, multiTurnContextManager.buildContext(threadId));
+		stateUpdate.put(MULTI_TURN_CONTEXT, multiTurnContext);
 
 		RunnableConfig baseConfig = RunnableConfig.builder().threadId(threadId).build();
 		RunnableConfig updatedConfig;

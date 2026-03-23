@@ -52,36 +52,36 @@ import static com.alibaba.cloud.ai.dataagent.constant.Constant.TRACE_THREAD_ID;
 public class ReferenceResolutionNode implements NodeAction {
 
 	private static final Pattern ORDINAL_PATTERN =
-			Pattern.compile("\\u7B2C([\\u4E00\\u4E8C\\u4E09\\u56DB\\u4E94\\u516D\\u4E03\\u516B\\u4E5D\\u5341\\u767E0-9]+)[\\u6761\\u4E2A\\u9879]?"); // NOPMD
+			Pattern.compile("\u7B2C([\u4E00\u4E8C\u4E09\u56DB\u4E94\u516D\u4E03\u516B\u4E5D\u5341\u767E0-9]+)[\u6761\u4E2A\u9879]?"); // NOPMD
 
-	private static final List<String> PIPE_ENTITY_KEYWORDS = List.of("\\u7BA1\\u7EBF", "\\u7BA1\\u9053",
-			"\\u7BA1\\u6BB5");
+	private static final List<String> PIPE_ENTITY_KEYWORDS = List.of("\u7BA1\u7EBF", "\u7BA1\u9053",
+			"\u7BA1\u6BB5");
 
-	private static final List<String> VALVE_ENTITY_KEYWORDS = List.of("\\u9600\\u95E8");
+	private static final List<String> VALVE_ENTITY_KEYWORDS = List.of("\u9600\u95E8");
 
-	private static final List<String> WORK_ORDER_ENTITY_KEYWORDS = List.of("\\u5DE5\\u5355");
+	private static final List<String> WORK_ORDER_ENTITY_KEYWORDS = List.of("\u5DE5\u5355");
 
-	private static final List<String> DEVICE_ENTITY_KEYWORDS = List.of("\\u8BBE\\u5907");
+	private static final List<String> DEVICE_ENTITY_KEYWORDS = List.of("\u8BBE\u5907");
 
-	private static final List<String> PRONOUN_REFERENCE_KEYWORDS = List.of("\\u8FD9\\u6761", "\\u90A3\\u4E2A",
-			"\\u8FD9\\u4E2A", "\\u4E0A\\u8FF0", "\\u4E0A\\u9762", "\\u8FD9\\u4E9B", "\\u5B83");
+	private static final List<String> PRONOUN_REFERENCE_KEYWORDS = List.of("\u8FD9\u6761", "\u90A3\u4E2A",
+			"\u8FD9\u4E2A", "\u4E0A\u8FF0", "\u4E0A\u9762", "\u8FD9\u4E9B", "\u5B83");
 
-	private static final List<String> EXPLICIT_SCOPE_KEYWORDS = List.of("\\u4F9B\\u6C34\\u7BA1\\u7F51",
-			"\\u6392\\u6C34\\u7BA1\\u7F51", "\\u6C61\\u6C34\\u7BA1\\u7F51", "\\u96E8\\u6C34\\u7BA1\\u7F51",
-			"\\u70ED\\u529B\\u7BA1\\u7F51", "\\u71C3\\u6C14\\u7BA1\\u7F51", "\\u6D88\\u9632\\u7BA1\\u7F51",
-			"\\u7BA1\\u5F84", "\\u9644\\u8FD1", "\\u76F8\\u4EA4", "\\u5305\\u542B", "\\u5927\\u4E8E", "\\u5C0F\\u4E8E",
+	private static final List<String> EXPLICIT_SCOPE_KEYWORDS = List.of("\u4F9B\u6C34\u7BA1\u7F51",
+			"\u6392\u6C34\u7BA1\u7F51", "\u6C61\u6C34\u7BA1\u7F51", "\u96E8\u6C34\u7BA1\u7F51",
+			"\u70ED\u529B\u7BA1\u7F51", "\u71C3\u6C14\u7BA1\u7F51", "\u6D88\u9632\u7BA1\u7F51",
+			"\u7BA1\u5F84", "\u9644\u8FD1", "\u76F8\u4EA4", "\u5305\u542B", "\u5927\u4E8E", "\u5C0F\u4E8E",
 			">", "<");
 
 	private static final String CLARIFY_MESSAGE =
-			"\\u8BF7\\u5148\\u660E\\u786E\\u8981\\u67E5\\u770B\\u7684\\u5BF9\\u8C61\\uFF0C\\u6216\\u8005\\u5148\\u6267\\u884C\\u4E00\\u6B21\\u76F8\\u5173\\u7684\\u7BA1\\u7EBF\\u3001\\u9600\\u95E8\\u67E5\\u8BE2\\u3002";
+			"\u8BF7\u5148\u660E\u786E\u8981\u67E5\u770B\u7684\u5BF9\u8C61\uFF0C\u6216\u8005\u5148\u6267\u884C\u4E00\u6B21\u76F8\u5173\u7684\u7BA1\u7EBF\u3001\u9600\u95E8\u67E5\u8BE2\u3002";
 
 	private static final String RESOLVED_FROM_REFERENCE_PREFIX =
-			"\\u57FA\\u4E8E\\u4E0A\\u4E00\\u8F6E\\u7ED3\\u679C\\uFF08";
+			"\u57FA\u4E8E\u4E0A\u4E00\u8F6E\u7ED3\u679C\uFF08";
 
 	private static final String RESOLVED_FROM_BURST_PREFIX =
-			"\\u57FA\\u4E8E\\u4E0A\\u4E00\\u8F6E\\u7206\\u7BA1\\u5206\\u6790\\u7ED3\\u679C\\uFF08";
+			"\u57FA\u4E8E\u4E0A\u4E00\u8F6E\u7206\u7BA1\u5206\u6790\u7ED3\u679C\uFF08";
 
-	private static final String PREFIX_SUFFIX = "\\uFF09\\uFF0C";
+	private static final String PREFIX_SUFFIX = "\uFF09\uFF0C";
 
 	private final ReferenceResolutionContextManager referenceContextManager;
 
@@ -97,6 +97,10 @@ public class ReferenceResolutionNode implements NodeAction {
 		String entityType = detectEntityType(normalized, referenceContext);
 		String ordinal = detectOrdinal(userInput);
 		boolean hasReferenceMarker = hasReferenceMarker(normalized, ordinal);
+		log.info(
+				"[CTX_TRACE][REFERENCE_RESOLUTION][INPUT][threadId={}] userInput={} hasReferenceMarker={} ordinal={} entityType={} hasReferenceContext={} hasBurstContext={}",
+				threadId, userInput, hasReferenceMarker, StringUtils.defaultString(ordinal),
+				StringUtils.defaultString(entityType), referenceContext != null, burstAnalysisContext != null);
 
 		if (hasReferenceMarker && requiresPreviousContext(normalized) && referenceContext == null
 				&& !canResolveFromBurstContext(normalized, burstAnalysisContext)) {
@@ -146,6 +150,10 @@ public class ReferenceResolutionNode implements NodeAction {
 			.entityType(entityType)
 			.referenceOrdinal(ordinal)
 			.build();
+		log.info(
+				"[CTX_TRACE][REFERENCE_RESOLUTION][OUTPUT][threadId={}] resolvedReference={} entityType={} ordinal={} referenceSummary={} resolvedQuery={}",
+				threadId, resolvedReference, StringUtils.defaultString(entityType), StringUtils.defaultString(ordinal),
+				StringUtils.defaultString(referenceSummary), resolvedQuery);
 		return Map.of(REFERENCE_RESOLUTION_NODE_OUTPUT, output, INPUT_KEY, resolvedQuery, REFERENCE_RESOLVED_QUERY,
 				resolvedQuery, REFERENCE_CONTEXT_SUMMARY, StringUtils.defaultString(referenceSummary),
 				REFERENCE_ENTITY_TYPE, StringUtils.defaultString(entityType), REFERENCE_ORDINAL,
@@ -160,10 +168,10 @@ public class ReferenceResolutionNode implements NodeAction {
 		if (containsAny(normalizedInput, EXPLICIT_SCOPE_KEYWORDS)) {
 			return true;
 		}
-		return normalizedInput.contains("\\u8BE6\\u7EC6\\u4FE1\\u606F")
-				|| normalizedInput.contains("\\u6570\\u636E")
-				|| normalizedInput.contains("\\u5DE5\\u5355")
-				|| normalizedInput.contains("\\u7206\\u7BA1\\u5206\\u6790")
+		return normalizedInput.contains("\u8BE6\u7EC6\u4FE1\u606F")
+				|| normalizedInput.contains("\u6570\u636E")
+				|| normalizedInput.contains("\u5DE5\u5355")
+				|| normalizedInput.contains("\u7206\u7BA1\u5206\u6790")
 				|| !hasReferenceMarker;
 	}
 

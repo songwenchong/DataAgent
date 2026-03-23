@@ -87,30 +87,60 @@ public class BurstAnalysisNode implements NodeAction {
 	private String buildMarkdown(BurstAnalysisResponseDTO response) {
 		StringBuilder markdown = new StringBuilder();
 		markdown.append("## \u7206\u7BA1\u5206\u6790\u7ED3\u679C\n\n");
-		markdown.append(response.getSummary()).append("\n\n");
-		markdown.append("- \u6267\u884C\u6210\u529F: ").append(response.isSuccess()).append("\n");
-		markdown.append("- Layer ID: ").append(response.getLayerId()).append("\n");
-		markdown.append("- GID: ").append(response.getGid()).append("\n");
-		if (response.getCloseValves() != null && !response.getCloseValves().isBlank()) {
-			markdown.append("- \u5173\u9600\u5217\u8868: ").append(response.getCloseValves()).append("\n");
+		if (response.getSummary() != null && !response.getSummary().isBlank()) {
+			markdown.append(response.getSummary()).append("\n\n");
 		}
-		if (response.getParentAnalysisId() != null && !response.getParentAnalysisId().isBlank()) {
-			markdown.append("- \u7236\u5206\u6790ID: ").append(response.getParentAnalysisId()).append("\n");
+
+		StringBuilder overview = new StringBuilder();
+		appendLine(overview, "\u6240\u5C5E\u7BA1\u7F51", response.getNetworkName());
+		appendLine(overview, "\u5206\u6790\u7F16\u53F7", response.getAnalysisId());
+		appendLine(overview, "\u5206\u6790\u7C7B\u578B", response.getAnalysisType());
+		appendLine(overview, "\u5173\u9600\u65B9\u6848", response.getValvePlanSummary());
+		appendLine(overview, "\u5F71\u54CD\u8303\u56F4", response.getAffectedAreaDesc());
+		appendLine(overview, "\u53D7\u5F71\u54CD\u7BA1\u7EBF", response.getPipesSummary());
+		if (response.getMustCloseCount() != null) {
+			appendLine(overview, "\u5FC5\u5173\u9600\u95E8\u6570", String.valueOf(response.getMustCloseCount()));
 		}
-		if (response.getRequestUri() != null && !response.getRequestUri().isBlank()) {
-			markdown.append("- Request URI: ").append(response.getRequestUri()).append("\n");
+		if (response.getTotalValveCount() != null) {
+			appendLine(overview, "\u603B\u53D7\u5F71\u54CD\u9600\u95E8\u6570", String.valueOf(response.getTotalValveCount()));
 		}
+		if (overview.length() > 0) {
+			markdown.append("### \u6982\u89C8\n");
+			markdown.append(overview).append("\n");
+		}
+
+		if (response.getMustCloseValves() != null && !response.getMustCloseValves().isEmpty()) {
+			markdown.append("\n### \u5FC5\u5173\u9600\u95E8\n");
+			int limit = Math.min(response.getMustCloseValves().size(), 10);
+			for (int i = 0; i < limit; i++) {
+				markdown.append(i + 1).append(". ").append(response.getMustCloseValves().get(i)).append("\n");
+			}
+		}
+
+		if (response.getDownstreamValveIds() != null && !response.getDownstreamValveIds().isEmpty()) {
+			markdown.append("\n### \u4E0B\u6E38\u9600\u95E8\n");
+			markdown.append(String.join("\u3001", response.getDownstreamValveIds().stream().limit(10).toList()))
+				.append("\n");
+		}
+
 		if (response.getHighlights() != null && !response.getHighlights().isEmpty()) {
 			markdown.append("\n### \u5206\u6790\u8981\u70B9\n");
 			for (String highlight : response.getHighlights()) {
 				markdown.append("- ").append(highlight).append("\n");
 			}
 		}
-		if (response.getRawResponse() != null && !response.getRawResponse().isBlank()) {
-			markdown.append("\n### Raw Response\n");
-			markdown.append("```json\n").append(response.getRawResponse()).append("\n```\n");
-		}
+		markdown.append("\n### \u53EF\u7EE7\u7EED\u8FFD\u95EE\n");
+		markdown.append("- \u67E5\u770B\u5FC5\u5173\u9600\u95E8\u7684\u8BE6\u7EC6\u4FE1\u606F\n");
+		markdown.append("- \u8BA9\u7CFB\u7EDF\u5BF9\u7B2C\u4E00\u6761\u53D7\u5F71\u54CD\u7BA1\u7EBF\u7EE7\u7EED\u505A\u7206\u7BA1\u5206\u6790\n");
+		markdown.append("- \u6A21\u62DF\u67D0\u4E2A\u9600\u95E8\u5931\u6548\u540E\u91CD\u65B0\u5206\u6790\n");
 		return markdown.toString();
+	}
+
+	private void appendLine(StringBuilder markdown, String label, String value) {
+		if (value == null || value.isBlank()) {
+			return;
+		}
+		markdown.append("- ").append(label).append(": ").append(value).append("\n");
 	}
 
 }

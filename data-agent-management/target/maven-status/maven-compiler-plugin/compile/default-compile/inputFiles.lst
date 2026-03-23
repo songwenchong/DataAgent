@@ -6,6 +6,7 @@ D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\d
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\bo\schema\TableInfoBO.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\service\code\impls\DockerCodePoolExecutorService.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\connector\SqlExecutor.java
+D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\dto\prompt\ClarificationOutputDTO.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\dto\search\SqlResultRequest.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\service\datasource\AgentDatasourceService.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\workflow\node\TableRelationNode.java
@@ -30,18 +31,24 @@ D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\d
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\vo\BusinessKnowledgeVO.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\service\aimodelconfig\ModelConfigOpsService.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\workflow\dispatcher\IntentRecognitionDispatcher.java
+D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\workflow\node\ClarificationNode.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\service\code\impls\LocalCodePoolExecutorService.java
+D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\workflow\node\BurstAnalysisRouteNode.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\controller\ModelConfigController.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\service\semantic\SemanticModelExcelService.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\service\chat\ChatSessionServiceImpl.java
+D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\service\graph\Context\QueryResultContextManager.java
+D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\workflow\dispatcher\ClarificationDispatcher.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\workflow\node\HumanFeedbackNode.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\mapper\SemanticModelMapper.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\service\aimodelconfig\DynamicModelFactory.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\service\datasource\DatasourceService.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\constant\Constant.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\workflow\dispatcher\SQLExecutorDispatcher.java
+D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\service\graph\Context\ClarificationContextManager.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\service\hybrid\fusion\impl\WeightedAverageStrategy.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\service\prompt\UserPromptServiceImpl.java
+D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\dto\prompt\BurstAnalysisRouteOutputDTO.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\service\hybrid\fusion\FusionStrategy.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\service\hybrid\fusion\impl\RrfFusionStrategy.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\workflow\node\SemanticConsistencyNode.java
@@ -56,6 +63,7 @@ D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\d
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\service\datasource\handler\impl\HiveDatasourceTypeHandler.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\service\datasource\handler\registry\DatasourceTypeHandlerRegistry.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\service\vectorstore\AgentVectorStoreService.java
+D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\workflow\dispatcher\ReferenceResolutionDispatcher.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\util\ResultSetConvertUtil.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\enums\DbAccessTypeEnum.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\controller\EchoController.java
@@ -76,6 +84,7 @@ D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\d
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\aop\NodeEntryLoggingAspect.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\config\McpServerConfig.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\vo\UploadResponse.java
+D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\dto\prompt\ReferenceResolutionOutputDTO.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\service\hybrid\factory\FusionStrategyFactory.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\dto\prompt\EvidenceQueryRewriteDTO.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\workflow\node\IntentRecognitionNode.java
@@ -84,6 +93,7 @@ D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\d
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\controller\AgentPresetQuestionController.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\mapper\ChatMessageMapper.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\service\sql\SqlResultLiteQueryService.java
+D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\dto\burst\BurstAnalysisResponseDTO.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\controller\BusinessKnowledgeController.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\dto\knowledge\agentknowledge\CreateKnowledgeDTO.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\workflow\node\PythonGenerateNode.java
@@ -103,6 +113,7 @@ D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\d
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\dto\datasource\DatasourceTypeDTO.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\util\JsonUtil.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\config\WebConfig.java
+D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\dto\burst\BurstAnalysisMockResponseDTO.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\connector\impls\mysql\MySQLDBAccessor.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\bo\schema\DisplayStyleBO.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\util\PlanProcessUtil.java
@@ -147,6 +158,7 @@ D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\d
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\dto\prompt\SemanticConsistencyDTO.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\enums\DatabaseDialectEnum.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\service\schema\TableMetadataService.java
+D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\workflow\node\BurstAnalysisNode.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\mapper\DatasourceMapper.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\service\llm\LlmServiceEnum.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\connector\impls\postgre\PostgreJdbcDdl.java
@@ -208,6 +220,7 @@ D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\d
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\controller\AgentDatasourceController.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\controller\SessionEventController.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\dto\prompt\SqlGenerationDTO.java
+D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\service\burst\BurstAnalysisService.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\util\MarkdownParserUtil.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\service\chat\ChatSessionService.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\workflow\node\PlannerNode.java
@@ -219,6 +232,8 @@ D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\d
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\connector\impls\oracle\OracleJdbcDdl.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\service\agent\AgentPresetQuestionServiceImpl.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\service\file\FileStorageServiceEnum.java
+D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\service\graph\Context\BurstAnalysisContextManager.java
+D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\workflow\node\DirectAnswerNode.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\workflow\node\QueryEnhanceNode.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\connector\impls\h2\H2JdbcConnectionPool.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\dto\GraphRequest.java
@@ -228,12 +243,14 @@ D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\d
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\bo\schema\ForeignKeyInfoBO.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\config\OpenApiConfig.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\dto\ModelConfigDTO.java
+D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\workflow\node\ReferenceResolutionNode.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\service\datasource\handler\impl\PostgreSqlDatasourceTypeHandler.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\service\sql\SqlResultLiteQueryServiceImpl.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\constant\DocumentMetadataConstant.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\workflow\dispatcher\PythonExecutorDispatcher.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\workflow\dispatcher\SemanticConsistenceDispatcher.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\dto\search\AgentSearchRequest.java
+D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\workflow\dispatcher\ConversationIntentDispatcher.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\util\DatabaseUtil.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\config\DataAgentConfiguration.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\connector\impls\hive\HiveJdbcConnectionPool.java
@@ -287,6 +304,7 @@ D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\d
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\workflow\dispatcher\TableRelationDispatcher.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\service\schema\SchemaServiceImpl.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\service\file\FileStorageService.java
+D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\service\graph\Context\ReferenceResolutionContextManager.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\service\knowledge\TextSplitterFactory.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\service\datasource\handler\impl\H2DatasourceTypeHandler.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\service\datasource\handler\impl\DamengDatasourceTypeHandler.java
@@ -297,4 +315,6 @@ D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\d
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\splitter\ParagraphTextSplitter.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\util\McpServerToolUtil.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\mapper\BusinessKnowledgeMapper.java
+D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\service\burst\BurstAnalysisServiceImpl.java
 D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\entity\ChatMessage.java
+D:\code\DataAgent-New\data-agent-management\src\main\java\com\alibaba\cloud\ai\dataagent\workflow\dispatcher\BurstAnalysisDispatcher.java

@@ -31,9 +31,31 @@ public class BurstAnalysisResponseDTO {
 
 	private String summary;
 
+	private String analysisId;
+
+	private String analysisType;
+
+	private String networkName;
+
 	private String layerId;
 
 	private String gid;
+
+	private String valvePlanSummary;
+
+	private Integer mustCloseCount;
+
+	private Integer totalValveCount;
+
+	private String affectedAreaDesc;
+
+	private Integer pipesCount;
+
+	private String pipesSummary;
+
+	private List<String> mustCloseValves;
+
+	private List<String> downstreamValveIds;
 
 	private String closeValves;
 

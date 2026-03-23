@@ -53,6 +53,7 @@ public class MultiTurnContextManager {
 			return;
 		}
 		pendingTurns.put(threadId, new PendingTurn(userQuestion.trim()));
+		log.info("[CTX_TRACE][MULTI_TURN][BEGIN][threadId={}] userQuestion={}", threadId, userQuestion.trim());
 	}
 
 	public void setRouteScene(String threadId, String routeScene) {
@@ -107,6 +108,8 @@ public class MultiTurnContextManager {
 				deque.pollFirst();
 			}
 			deque.addLast(new ConversationTurn(pending.userQuestion, routeScene, trimmedSummary));
+			log.info("[CTX_TRACE][MULTI_TURN][FINISH][threadId={}] historySize={} routeScene={} summary={}",
+					threadId, deque.size(), routeScene, trimmedSummary);
 		}
 	}
 
@@ -116,6 +119,7 @@ public class MultiTurnContextManager {
 	 */
 	public void discardPending(String threadId) {
 		pendingTurns.remove(threadId);
+		log.info("[CTX_TRACE][MULTI_TURN][DISCARD_PENDING][threadId={}]", threadId);
 	}
 
 	/**
@@ -136,6 +140,8 @@ public class MultiTurnContextManager {
 			PendingTurn pendingTurn = new PendingTurn(lastTurn.userQuestion());
 			pendingTurn.routeScene = lastTurn.routeScene();
 			pendingTurns.put(threadId, pendingTurn);
+			log.info("[CTX_TRACE][MULTI_TURN][RESTART_LAST_TURN][threadId={}] restoredQuestion={} routeScene={}",
+					threadId, lastTurn.userQuestion(), lastTurn.routeScene());
 		}
 	}
 
@@ -147,12 +153,15 @@ public class MultiTurnContextManager {
 	public String buildContext(String threadId) {
 		Deque<ConversationTurn> deque = history.get(threadId);
 		if (deque == null || deque.isEmpty()) {
+			log.info("[CTX_TRACE][MULTI_TURN][BUILD][threadId={}] context=(无)", threadId);
 			return "(无)";
 		}
-		return deque.stream()
+		String context = deque.stream()
 			.map(turn -> "用户: " + turn.userQuestion() + "\n场景: " + turn.routeScene() + "\nAI摘要: "
 					+ turn.assistantSummary())
 			.collect(Collectors.joining("\n"));
+		log.info("[CTX_TRACE][MULTI_TURN][BUILD][threadId={}] context=\n{}", threadId, context);
+		return context;
 	}
 
 	private record ConversationTurn(String userQuestion, String routeScene, String assistantSummary) {

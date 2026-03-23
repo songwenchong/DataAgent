@@ -17,11 +17,13 @@ package com.alibaba.cloud.ai.dataagent.workflow.node;
 
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.PLAN_CURRENT_STEP;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.LIGHTWEIGHT_SQL_RESULT_MODE;
+import static com.alibaba.cloud.ai.dataagent.constant.Constant.REFERENCE_ENTITY_TYPE;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.SQL_EXECUTE_NODE_OUTPUT;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.SQL_GENERATE_COUNT;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.SQL_GENERATE_OUTPUT;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.SQL_REGENERATE_REASON;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.SQL_RESULT_LIST_MEMORY;
+import static com.alibaba.cloud.ai.dataagent.constant.Constant.TRACE_THREAD_ID;
 
 import com.alibaba.cloud.ai.dataagent.bo.DbConfigBO;
 import com.alibaba.cloud.ai.dataagent.bo.schema.DisplayStyleBO;
@@ -35,6 +37,8 @@ import com.alibaba.cloud.ai.dataagent.dto.planner.ExecutionStep;
 import com.alibaba.cloud.ai.dataagent.enums.TextType;
 import com.alibaba.cloud.ai.dataagent.prompt.PromptHelper;
 import com.alibaba.cloud.ai.dataagent.properties.DataAgentProperties;
+import com.alibaba.cloud.ai.dataagent.service.graph.Context.QueryResultContextManager;
+import com.alibaba.cloud.ai.dataagent.service.graph.Context.QueryResultContextManager.QueryResultContext;
 import com.alibaba.cloud.ai.dataagent.service.llm.LlmService;
 import com.alibaba.cloud.ai.dataagent.service.nl2sql.Nl2SqlService;
 import com.alibaba.cloud.ai.dataagent.util.ChatResponseUtil;
@@ -87,6 +91,8 @@ public class SqlExecuteNode implements NodeAction {
 	private final DataAgentProperties properties;
 
 	private final JsonParseUtil jsonParseUtil;
+
+	private final QueryResultContextManager queryResultContextManager;
 
 	private static final int SAMPLE_DATA_NUMBER = 20;
 
@@ -158,6 +164,7 @@ public class SqlExecuteNode implements NodeAction {
 					ResultSetBO resultSetBO = dbAccessor.executeSqlAndReturnObject(dbConfig, dbQueryParameter);
 					SqlRetryDto resultStatus = classifyQueryResult(state, resultSetBO);
 					if (!SqlRetryDto.SqlRetryType.NONE.equals(resultStatus.type())) {
+						clearLatestQueryResultContext(state);
 						result.put(SQL_REGENERATE_REASON, resultStatus);
 						emitter.next(ChatResponseUtil.createResponse(resultStatus.reason()));
 						return;
@@ -199,12 +206,14 @@ public class SqlExecuteNode implements NodeAction {
 				// Prepare the final result object
 				// Store List of SQL query results for use by code execution node
 				// Reset sql generate count retry times when sql execute success
+				saveLatestQueryResultContext(state, sqlQuery, resultSetBO);
 				result.putAll(Map.of(SQL_EXECUTE_NODE_OUTPUT, updatedResults, SQL_REGENERATE_REASON,
 						SqlRetryDto.empty(), SQL_RESULT_LIST_MEMORY,
 						buildSqlResultMemory(state, currentStep, sqlQuery, resultSetBO), PLAN_CURRENT_STEP,
 						currentStep + 1, SQL_GENERATE_COUNT, 0));
 				}
 				catch (Exception e) {
+					clearLatestQueryResultContext(state);
 					String errorMessage = e.getMessage();
 					log.error("SQL execution failed - SQL as follows: \n {} \n ", sqlQuery, e);
 					SqlRetryDto retryStatus = classifyExecutionException(errorMessage);
@@ -238,6 +247,31 @@ public class SqlExecuteNode implements NodeAction {
 		currentStepResult.put("data", resultSetBO.getData());
 		mergedMemory.add(currentStepResult);
 		return mergedMemory;
+	}
+
+	private void saveLatestQueryResultContext(OverAllState state, String sqlQuery, ResultSetBO resultSetBO) {
+		String threadId = StateUtil.getStringValue(state, TRACE_THREAD_ID, "");
+		if (StringUtils.isBlank(threadId) || resultSetBO == null || resultSetBO.getData() == null
+				|| resultSetBO.getData().isEmpty()) {
+			return;
+		}
+
+		String entityType = StateUtil.getStringValue(state, REFERENCE_ENTITY_TYPE, "");
+		QueryResultContext context = new QueryResultContext(entityType, extractPrimaryTableName(sqlQuery),
+				resultSetBO.getColumn(), List.copyOf(resultSetBO.getData()));
+		queryResultContextManager.save(threadId, context);
+		log.info(
+				"[CTX_TRACE][QUERY_RESULT][PREPARE_SAVE][threadId={}] entityType={} tableName={} columns={} rowCount={} sampleRows={}",
+				threadId, StringUtils.defaultString(entityType), extractPrimaryTableName(sqlQuery), resultSetBO.getColumn(),
+				resultSetBO.getData().size(), StringUtils.abbreviate(String.valueOf(resultSetBO.getData().stream().limit(3).toList()), 2000));
+	}
+
+	private void clearLatestQueryResultContext(OverAllState state) {
+		String threadId = StateUtil.getStringValue(state, TRACE_THREAD_ID, "");
+		if (StringUtils.isBlank(threadId)) {
+			return;
+		}
+		queryResultContextManager.clear(threadId);
 	}
 
 	private String extractPrimaryTableName(String sqlQuery) {
