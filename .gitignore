@@ -1,5 +1,11 @@
+.mvn/*
+.run/*
+.tools/*
+.trae/*
+settings.xml 
 # maven ignore
 target/
+data-agent-management/target/
 *.class
 *.jar
 *.war
