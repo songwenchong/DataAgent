@@ -82,6 +82,8 @@ public class SqlResultLiteQueryServiceImpl implements SqlResultLiteQueryService 
 		if (!StringUtils.hasText(request.getThreadId())) {
 			request.setThreadId(UUID.randomUUID().toString());
 		}
+		log.info("Starting lightweight sql result query, threadId: {}, agentId: {}, query: {}",
+				request.getThreadId(), request.getAgentId(), request.getQuery());
 
 		try {
 			OverAllState state = compiledGraph
@@ -91,6 +93,7 @@ public class SqlResultLiteQueryServiceImpl implements SqlResultLiteQueryService 
 								MULTI_TURN_CONTEXT, "", TRACE_THREAD_ID, request.getThreadId()),
 						RunnableConfig.builder().threadId(request.getThreadId()).build())
 				.orElseThrow(() -> new IllegalStateException("Lightweight sql graph returned empty state"));
+			log.info("Lightweight sql result query finished graph invocation, threadId: {}", request.getThreadId());
 			return buildSqlResultResponse(request, state);
 		}
 		catch (Exception e) {
@@ -113,58 +116,53 @@ public class SqlResultLiteQueryServiceImpl implements SqlResultLiteQueryService 
 	}
 
 	private SqlResultResponse buildSqlResultResponse(SqlResultRequest request, OverAllState state) {
-		Map<String, Object> finalResult = extractFinalSqlResultMemory(state);
-		if (finalResult.isEmpty()) {
-			finalResult = extractFinalResultFromExecutionResults(state);
-		}
 		SqlRetryDto retryStatus = StateUtil.getObjectValue(state, SQL_REGENERATE_REASON, SqlRetryDto.class,
 				SqlRetryDto.empty());
-		String sql = extractFinalSql(state, finalResult);
-		String tableName = getStringValue(finalResult.get("table_name"));
-		String step = getStringValue(finalResult.get("step"));
-		List<Map<String, Object>> rows = extractResultRows(finalResult);
-		List<String> fields = extractColumns(finalResult, rows);
-		List<SqlResultColumnDTO> columns = buildColumnsWithBusinessNames(request.getAgentId(), tableName, fields);
-
-		if (!rows.isEmpty()) {
-			return buildSuccessResponse(request, step, sql, columns, rows, "ok");
+		List<Map<String, Object>> resultItems = buildSqlResultItems(request, extractAllSqlResultMemories(state));
+		if (resultItems.isEmpty()) {
+			Map<String, Object> fallbackItem = buildFallbackSqlResultItem(request, state);
+			if (!fallbackItem.isEmpty()) {
+				resultItems = List.of(fallbackItem);
+			}
 		}
 
-		if (retryStatus.type() == SqlRetryDto.SqlRetryType.EMPTY_RESULT
-				|| retryStatus.type() == SqlRetryDto.SqlRetryType.NO_TARGET_FOUND) {
-			return buildSuccessResponse(request, step, sql, columns, rows, "No data matched the query");
+		if (!resultItems.isEmpty()) {
+			Map<String, Object> lastResultItem = resultItems.get(resultItems.size() - 1);
+			String message = hasAnyRowData(resultItems) ? "ok" : "No data matched the query";
+			return buildSuccessResponse(request, getStringValue(lastResultItem.get("step")),
+					getStringValue(lastResultItem.get("sql")), Collections.emptyList(), resultItems, message);
 		}
 
-		if (!finalResult.isEmpty()) {
-			return buildSuccessResponse(request, step, sql, columns, rows, "No data matched the query");
-		}
-
+		String sql = StateUtil.getStringValue(state, SQL_GENERATE_OUTPUT, "");
 		String failureMessage = StringUtils.hasText(retryStatus.reason()) ? retryStatus.reason()
 				: "SQL execution did not produce a result";
 		return buildFailureResponse(request, sql, failureMessage);
 	}
 
-	private Map<String, Object> extractFinalSqlResultMemory(OverAllState state) {
+	private List<Map<String, Object>> extractAllSqlResultMemories(OverAllState state) {
 		if (!StateUtil.hasValue(state, SQL_RESULT_LIST_MEMORY)) {
-			return Collections.emptyMap();
+			return Collections.emptyList();
 		}
 		List<Map<String, Object>> resultMemory = StateUtil.getListValue(state, SQL_RESULT_LIST_MEMORY);
 		if (resultMemory == null || resultMemory.isEmpty()) {
+			return Collections.emptyList();
+		}
+
+		List<Map<String, Object>> sortedMemory = resultMemory.stream()
+			.filter(item -> item != null && !item.isEmpty())
+			.<Map<String, Object>>map(item -> new LinkedHashMap<>(item))
+			.sorted((left, right) -> Integer.compare(stepSortValue(getStringValue(left.get("step"))),
+					stepSortValue(getStringValue(right.get("step")))))
+			.toList();
+		return sortedMemory.isEmpty() ? Collections.emptyList() : sortedMemory;
+	}
+
+	private Map<String, Object> extractFinalSqlResultMemory(OverAllState state) {
+		List<Map<String, Object>> resultMemory = extractAllSqlResultMemories(state);
+		if (resultMemory.isEmpty()) {
 			return Collections.emptyMap();
 		}
-		Map<String, Object> finalResult = null;
-		int maxStep = -1;
-		for (Map<String, Object> item : resultMemory) {
-			if (item == null) {
-				continue;
-			}
-			int currentStep = parseStepNumber(getStringValue(item.get("step")));
-			if (currentStep >= maxStep) {
-				maxStep = currentStep;
-				finalResult = item;
-			}
-		}
-		return finalResult != null ? finalResult : Collections.emptyMap();
+		return resultMemory.get(resultMemory.size() - 1);
 	}
 
 	@SuppressWarnings("unchecked")
@@ -215,6 +213,84 @@ public class SqlResultLiteQueryServiceImpl implements SqlResultLiteQueryService 
 		String sql = StateUtil.getStringValue(state, SQL_GENERATE_OUTPUT, "");
 		String sqlFromMemory = getStringValue(finalResult.get("sql_query"));
 		return StringUtils.hasText(sqlFromMemory) ? sqlFromMemory : sql;
+	}
+
+	private List<Map<String, Object>> buildSqlResultItems(SqlResultRequest request, List<Map<String, Object>> memories) {
+		if (memories == null || memories.isEmpty()) {
+			return Collections.emptyList();
+		}
+
+		List<Map<String, Object>> resultItems = new ArrayList<>();
+		for (Map<String, Object> memory : memories) {
+			Map<String, Object> resultItem = buildSqlResultItem(request, memory);
+			if (!resultItem.isEmpty()) {
+				resultItems.add(resultItem);
+			}
+		}
+		return resultItems;
+	}
+
+	private Map<String, Object> buildSqlResultItem(SqlResultRequest request, Map<String, Object> memory) {
+		if (memory == null || memory.isEmpty()) {
+			return Collections.emptyMap();
+		}
+
+		List<Map<String, Object>> rows = extractResultRows(memory);
+		String tableName = getStringValue(memory.get("table_name"));
+		List<String> fields = extractColumns(memory, rows);
+		List<SqlResultColumnDTO> columns = buildColumnsWithBusinessNames(request.getAgentId(), tableName, fields);
+
+		Map<String, Object> item = new LinkedHashMap<>();
+		item.put("step", getStringValue(memory.get("step")));
+		item.put("sql", extractSqlFromResult(memory));
+		item.put("tableName", tableName);
+		item.put("columns", columns);
+		item.put("rows", rows);
+		item.put("rowCount", rows.size());
+		return item;
+	}
+
+	private Map<String, Object> buildFallbackSqlResultItem(SqlResultRequest request, OverAllState state) {
+		Map<String, Object> fallbackResult = extractFinalResultFromExecutionResults(state);
+		if (fallbackResult.isEmpty()) {
+			return Collections.emptyMap();
+		}
+
+		Map<String, Object> fallbackMemory = new LinkedHashMap<>(fallbackResult);
+		fallbackMemory.putIfAbsent("sql_query", extractFinalSql(state, fallbackResult));
+		fallbackMemory.putIfAbsent("table_name", "");
+		return buildSqlResultItem(request, fallbackMemory);
+	}
+
+	private String extractSqlFromResult(Map<String, Object> result) {
+		String sql = getStringValue(result.get("sql"));
+		if (StringUtils.hasText(sql)) {
+			return sql;
+		}
+		return getStringValue(result.get("sql_query"));
+	}
+
+	private boolean hasAnyRowData(List<Map<String, Object>> resultItems) {
+		if (resultItems == null || resultItems.isEmpty()) {
+			return false;
+		}
+		for (Map<String, Object> resultItem : resultItems) {
+			Object rowCount = resultItem.get("rowCount");
+			if (rowCount instanceof Number number && number.intValue() > 0) {
+				return true;
+			}
+			if (rowCount != null) {
+				try {
+					if (Integer.parseInt(String.valueOf(rowCount)) > 0) {
+						return true;
+					}
+				}
+				catch (NumberFormatException ignore) {
+					// Ignore malformed rowCount values and continue checking the rest.
+				}
+			}
+		}
+		return false;
 	}
 
 	private List<Map<String, Object>> extractResultRows(Map<String, Object> finalResult) {
@@ -307,7 +383,7 @@ public class SqlResultLiteQueryServiceImpl implements SqlResultLiteQueryService 
 	}
 
 	private SqlResultResponse buildSuccessResponse(SqlResultRequest request, String step, String sql,
-			List<SqlResultColumnDTO> columns, List<Map<String, Object>> rows, String message) {
+			List<SqlResultColumnDTO> columns, List<Map<String, Object>> data, String message) {
 		return SqlResultResponse.builder()
 			.success(true)
 			.agentId(request != null ? request.getAgentId() : null)
@@ -316,8 +392,8 @@ public class SqlResultLiteQueryServiceImpl implements SqlResultLiteQueryService 
 			.step(step)
 			.sql(sql)
 			.columns(columns != null ? columns : Collections.emptyList())
-			.data(rows != null ? rows : Collections.emptyList())
-			.rowCount(rows != null ? rows.size() : 0)
+			.data(data != null ? data : Collections.emptyList())
+			.rowCount(data != null ? data.size() : 0)
 			.message(message)
 			.build();
 	}
@@ -376,6 +452,11 @@ public class SqlResultLiteQueryServiceImpl implements SqlResultLiteQueryService 
 			}
 		}
 		return -1;
+	}
+
+	private int stepSortValue(String step) {
+		int stepNumber = parseStepNumber(step);
+		return stepNumber >= 0 ? stepNumber : Integer.MAX_VALUE;
 	}
 
 }

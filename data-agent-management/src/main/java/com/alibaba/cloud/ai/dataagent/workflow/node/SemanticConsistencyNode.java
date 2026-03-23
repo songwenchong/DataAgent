@@ -22,6 +22,7 @@ import static com.alibaba.cloud.ai.dataagent.constant.Constant.SQL_GENERATE_OUTP
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.SQL_REGENERATE_REASON;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.SQL_RESULT_LIST_MEMORY;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.TABLE_RELATION_OUTPUT;
+import static com.alibaba.cloud.ai.dataagent.constant.Constant.TRACE_THREAD_ID;
 import static com.alibaba.cloud.ai.dataagent.prompt.PromptHelper.buildMixMacSqlDbPrompt;
 import static com.alibaba.cloud.ai.dataagent.util.PlanProcessUtil.getCurrentExecutionStepInstruction;
 
@@ -55,11 +56,14 @@ public class SemanticConsistencyNode implements NodeAction {
 
 	@Override
 	public Map<String, Object> apply(OverAllState state) throws Exception {
+		String threadId = StateUtil.getStringValue(state, TRACE_THREAD_ID, "");
 		String evidence = StateUtil.getStringValue(state, EVIDENCE);
 		SchemaDTO schemaDTO = StateUtil.getObjectValue(state, TABLE_RELATION_OUTPUT, SchemaDTO.class);
 		String dialect = StateUtil.getStringValue(state, DB_DIALECT_TYPE);
 		String sql = StateUtil.getStringValue(state, SQL_GENERATE_OUTPUT);
 		String userQuery = StateUtil.getCanonicalQuery(state);
+		String executionDescription = getCurrentExecutionStepInstruction(state);
+		String schemaInfo = buildMixMacSqlDbPrompt(schemaDTO, true);
 		String previousStepResults = PromptHelper.buildPreviousStepResultsPrompt(
 				StateUtil.hasValue(state, SQL_RESULT_LIST_MEMORY) ? StateUtil.getListValue(state, SQL_RESULT_LIST_MEMORY)
 						: null);
@@ -67,13 +71,20 @@ public class SemanticConsistencyNode implements NodeAction {
 		SemanticConsistencyDTO semanticConsistencyDTO = SemanticConsistencyDTO.builder()
 			.dialect(dialect)
 			.sql(sql)
-			.executionDescription(getCurrentExecutionStepInstruction(state))
-			.schemaInfo(buildMixMacSqlDbPrompt(schemaDTO, true))
+			.executionDescription(executionDescription)
+			.schemaInfo(schemaInfo)
 			.userQuery(userQuery)
 			.evidence(evidence)
 			.previousStepResults(previousStepResults)
 			.build();
-		log.info("Starting semantic consistency validation - SQL: {}", sql);
+		log.info("Starting semantic consistency validation - threadId: {}, SQL: {}", threadId, sql);
+		log.info(
+				"[SemanticConsistencyParams] threadId={}, dialect={}, userQuery={}, executionDescription={}",
+				threadId, dialect, userQuery, executionDescription);
+		log.info("[SemanticConsistencyParams] threadId={} sql=\n{}", threadId, sql);
+		log.info("[SemanticConsistencyParams] threadId={} evidence=\n{}", threadId, evidence);
+		log.info("[SemanticConsistencyParams] threadId={} previousStepResults=\n{}", threadId, previousStepResults);
+		log.info("[SemanticConsistencyParams] threadId={} schemaInfo=\n{}", threadId, schemaInfo);
 		Flux<ChatResponse> validationResultFlux = nl2SqlService.performSemanticConsistency(semanticConsistencyDTO);
 
 		Flux<GraphResponse<StreamingOutput>> generator = FluxUtil.createStreamingGeneratorWithMessages(this.getClass(),

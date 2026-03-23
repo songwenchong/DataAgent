@@ -4,6 +4,7 @@ D:\code\DataAgent-New\data-agent-management\src\test\java\com\alibaba\cloud\ai\d
 D:\code\DataAgent-New\data-agent-management\src\test\java\com\alibaba\cloud\ai\dataagent\node\FeasibilityAssessmentNodeTest.java
 D:\code\DataAgent-New\data-agent-management\src\test\java\com\alibaba\cloud\ai\dataagent\service\MySqlContainerConfiguration.java
 D:\code\DataAgent-New\data-agent-management\src\test\java\com\alibaba\cloud\ai\dataagent\node\HumanFeedbackNodeTest.java
+D:\code\DataAgent-New\data-agent-management\src\test\java\com\alibaba\cloud\ai\dataagent\service\sql\SqlResultLiteQueryServiceImplTest.java
 D:\code\DataAgent-New\data-agent-management\src\test\java\com\alibaba\cloud\ai\dataagent\util\MarkdownParserUtilTest.java
 D:\code\DataAgent-New\data-agent-management\src\test\java\com\alibaba\cloud\ai\dataagent\dispatcher\SchemaRecallDispatcherTest.java
 D:\code\DataAgent-New\data-agent-management\src\test\java\com\alibaba\cloud\ai\dataagent\dispatcher\SQLExecutorDispatcherTest.java

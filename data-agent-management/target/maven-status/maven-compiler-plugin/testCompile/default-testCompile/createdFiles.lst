@@ -8,6 +8,7 @@ com\alibaba\cloud\ai\dataagent\DatabaseSchemaTest.class
 com\alibaba\cloud\ai\dataagent\MySqlContainerConfiguration.class
 com\alibaba\cloud\ai\dataagent\service\hybrid\retrieval\AbstractHybridRetrievalStrategyTest$MyHybridRetrievalStrategy.class
 com\alibaba\cloud\ai\dataagent\util\MarkdownParserUtilTest$BoundaryConditionsAndExceptions.class
+com\alibaba\cloud\ai\dataagent\service\sql\SqlResultLiteQueryServiceImplTest.class
 com\alibaba\cloud\ai\dataagent\service\hybrid\retrieval\AbstractHybridRetrievalStrategyTest.class
 com\alibaba\cloud\ai\dataagent\service\MySqlContainerConfiguration.class
 com\alibaba\cloud\ai\dataagent\service\code\DockerCodePoolExecutorServiceTest.class
