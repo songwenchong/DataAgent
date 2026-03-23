@@ -1,0 +1,4 @@
+interface:
+  display_name: "Save Analysis Plan"
+  short_description: "Save analysis, conclusions, and phased plans to Markdown."
+  default_prompt: "Use $save-analysis-plan-md to analyze this request, produce a phased execution plan, and save the results as Markdown."

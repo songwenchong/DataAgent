@@ -128,6 +128,13 @@ public class DataAgentConfiguration implements DisposableBean {
 			keyStrategyHashMap.put(MULTI_TURN_CONTEXT, KeyStrategy.REPLACE);
 			// Intent recognition
 			keyStrategyHashMap.put(INTENT_RECOGNITION_NODE_OUTPUT, KeyStrategy.REPLACE);
+			// Burst-analysis route
+			keyStrategyHashMap.put(BURST_ANALYSIS_ROUTE_OUTPUT, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(ROUTE_SCENE, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(ROUTE_CONFIDENCE, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(ROUTE_REASON, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(THREAD_ROUTE_CONTEXT, KeyStrategy.REPLACE);
+			keyStrategyHashMap.put(BURST_ANALYSIS_API_OUTPUT, KeyStrategy.REPLACE);
 			// QUERY_ENHANCE_NODE节点输出
 			keyStrategyHashMap.put(QUERY_ENHANCE_NODE_OUTPUT, KeyStrategy.REPLACE);
 			// Semantic model
@@ -185,6 +192,8 @@ public class DataAgentConfiguration implements DisposableBean {
 
 		StateGraph stateGraph = new StateGraph(NL2SQL_GRAPH_NAME, keyStrategyFactory)
 			.addNode(INTENT_RECOGNITION_NODE, nodeBeanUtil.getNodeBeanAsync(IntentRecognitionNode.class))
+			.addNode(BURST_ANALYSIS_ROUTE_NODE, nodeBeanUtil.getNodeBeanAsync(BurstAnalysisRouteNode.class))
+			.addNode(BURST_ANALYSIS_NODE, nodeBeanUtil.getNodeBeanAsync(BurstAnalysisNode.class))
 			.addNode(EVIDENCE_RECALL_NODE, nodeBeanUtil.getNodeBeanAsync(EvidenceRecallNode.class))
 			.addNode(QUERY_ENHANCE_NODE, nodeBeanUtil.getNodeBeanAsync(QueryEnhanceNode.class))
 			.addNode(SCHEMA_RECALL_NODE, nodeBeanUtil.getNodeBeanAsync(SchemaRecallNode.class))
@@ -203,7 +212,10 @@ public class DataAgentConfiguration implements DisposableBean {
 
 		stateGraph.addEdge(START, INTENT_RECOGNITION_NODE)
 			.addConditionalEdges(INTENT_RECOGNITION_NODE, edge_async(new IntentRecognitionDispatcher()),
-					Map.of(EVIDENCE_RECALL_NODE, EVIDENCE_RECALL_NODE, END, END))
+					Map.of(EVIDENCE_RECALL_NODE, BURST_ANALYSIS_ROUTE_NODE, END, END))
+			.addConditionalEdges(BURST_ANALYSIS_ROUTE_NODE, edge_async(new BurstAnalysisDispatcher()),
+					Map.of(BURST_ANALYSIS_NODE, BURST_ANALYSIS_NODE, EVIDENCE_RECALL_NODE, EVIDENCE_RECALL_NODE))
+			.addEdge(BURST_ANALYSIS_NODE, END)
 			.addEdge(EVIDENCE_RECALL_NODE, QUERY_ENHANCE_NODE)
 			.addConditionalEdges(QUERY_ENHANCE_NODE, edge_async(new QueryEnhanceDispatcher()),
 					Map.of(SCHEMA_RECALL_NODE, SCHEMA_RECALL_NODE, END, END))

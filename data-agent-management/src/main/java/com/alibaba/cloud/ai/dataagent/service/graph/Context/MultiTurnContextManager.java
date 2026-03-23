@@ -16,21 +16,20 @@
 package com.alibaba.cloud.ai.dataagent.service.graph.Context;
 
 import com.alibaba.cloud.ai.dataagent.properties.DataAgentProperties;
-import lombok.AllArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
-import org.springframework.stereotype.Component;
-
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
+import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
+import org.springframework.stereotype.Component;
 
 /**
  * Manages multi-turn dialogue context for each thread. The context keeps a lightweight
- * history of user questions and the corresponding planner outputs so downstream prompts
- * can reference prior turns.
+ * history of user questions, route scenes, and assistant summaries so downstream prompts
+ * can reference prior turns across both the default planner branch and specialized branches.
  */
 @Slf4j
 @Component
@@ -39,7 +38,7 @@ public class MultiTurnContextManager {
 
 	private final DataAgentProperties properties;
 
-	// todo：考虑持久化存储
+	// todo: consider persistence if cross-refresh or cross-restart recovery is needed.
 	private final Map<String, Deque<ConversationTurn>> history = new ConcurrentHashMap<>();
 
 	private final Map<String, PendingTurn> pendingTurns = new ConcurrentHashMap<>();
@@ -56,23 +55,37 @@ public class MultiTurnContextManager {
 		pendingTurns.put(threadId, new PendingTurn(userQuestion.trim()));
 	}
 
+	public void setRouteScene(String threadId, String routeScene) {
+		if (StringUtils.isAnyBlank(threadId, routeScene)) {
+			return;
+		}
+		PendingTurn pending = pendingTurns.get(threadId);
+		if (pending != null) {
+			pending.routeScene = routeScene.trim();
+		}
+	}
+
 	/**
 	 * Append planner output chunk for the current turn.
 	 * @param threadId conversation thread id
 	 * @param chunk planner streaming chunk
 	 */
 	public void appendPlannerChunk(String threadId, String chunk) {
+		appendAssistantChunk(threadId, chunk);
+	}
+
+	public void appendAssistantChunk(String threadId, String chunk) {
 		if (StringUtils.isAnyBlank(threadId, chunk)) {
 			return;
 		}
 		PendingTurn pending = pendingTurns.get(threadId);
 		if (pending != null) {
-			pending.planBuilder.append(chunk);
+			pending.assistantBuilder.append(chunk);
 		}
 	}
 
 	/**
-	 * Finalize current turn and add to history if planner output is available.
+	 * Finalize current turn and add it to history if assistant summary is available.
 	 * @param threadId conversation thread id
 	 */
 	public void finishTurn(String threadId) {
@@ -80,25 +93,25 @@ public class MultiTurnContextManager {
 		if (pending == null) {
 			return;
 		}
-		String plan = StringUtils.trimToEmpty(pending.planBuilder.toString());
-		if (StringUtils.isBlank(plan)) {
-			log.debug("No planner output recorded for thread {}, skipping history update", threadId);
+		String assistantSummary = StringUtils.trimToEmpty(pending.assistantBuilder.toString());
+		if (StringUtils.isBlank(assistantSummary)) {
+			log.debug("No assistant summary recorded for thread {}, skipping history update", threadId);
 			return;
 		}
 
-		String trimmedPlan = StringUtils.abbreviate(plan, properties.getMaxplanlength());
+		String trimmedSummary = StringUtils.abbreviate(assistantSummary, properties.getMaxplanlength());
+		String routeScene = StringUtils.defaultIfBlank(pending.routeScene, "DEFAULT_GRAPH");
 		Deque<ConversationTurn> deque = history.computeIfAbsent(threadId, k -> new ArrayDeque<>());
 		synchronized (deque) {
 			while (deque.size() >= properties.getMaxturnhistory()) {
 				deque.pollFirst();
 			}
-			deque.addLast(new ConversationTurn(pending.userQuestion, trimmedPlan));
+			deque.addLast(new ConversationTurn(pending.userQuestion, routeScene, trimmedSummary));
 		}
 	}
 
 	/**
-	 * Remove any pending turn data without touching persisted history. Typically used
-	 * when a run is aborted.
+	 * Remove any pending turn data without touching history. Typically used when a run is aborted.
 	 * @param threadId conversation thread id
 	 */
 	public void discardPending(String threadId) {
@@ -106,8 +119,8 @@ public class MultiTurnContextManager {
 	}
 
 	/**
-	 * Restart the latest turn so a new planner output can replace it (e.g. after human
-	 * feedback). The last stored turn will be removed and its question reused.
+	 * Restart the latest turn so a new assistant summary can replace it (e.g. after human feedback).
+	 * The last stored turn will be removed and its question reused.
 	 * @param threadId conversation thread id
 	 */
 	public void restartLastTurn(String threadId) {
@@ -120,7 +133,9 @@ public class MultiTurnContextManager {
 			lastTurn = deque.pollLast();
 		}
 		if (lastTurn != null) {
-			pendingTurns.put(threadId, new PendingTurn(lastTurn.userQuestion()));
+			PendingTurn pendingTurn = new PendingTurn(lastTurn.userQuestion());
+			pendingTurn.routeScene = lastTurn.routeScene();
+			pendingTurns.put(threadId, pendingTurn);
 		}
 	}
 
@@ -135,18 +150,21 @@ public class MultiTurnContextManager {
 			return "(无)";
 		}
 		return deque.stream()
-			.map(turn -> "用户: " + turn.userQuestion() + "\nAI计划: " + turn.plan())
+			.map(turn -> "用户: " + turn.userQuestion() + "\n场景: " + turn.routeScene() + "\nAI摘要: "
+					+ turn.assistantSummary())
 			.collect(Collectors.joining("\n"));
 	}
 
-	private record ConversationTurn(String userQuestion, String plan) {
+	private record ConversationTurn(String userQuestion, String routeScene, String assistantSummary) {
 	}
 
 	private static class PendingTurn {
 
 		private final String userQuestion;
 
-		private final StringBuilder planBuilder = new StringBuilder();
+		private String routeScene;
+
+		private final StringBuilder assistantBuilder = new StringBuilder();
 
 		private PendingTurn(String userQuestion) {
 			this.userQuestion = userQuestion;

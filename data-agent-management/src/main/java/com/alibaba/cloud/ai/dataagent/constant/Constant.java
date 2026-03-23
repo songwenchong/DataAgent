@@ -42,6 +42,8 @@ public final class Constant {
 
 	public static final String INTENT_RECOGNITION_NODE_OUTPUT = "INTENT_RECOGNITION_NODE_OUTPUT";
 
+	public static final String BURST_ANALYSIS_ROUTE_OUTPUT = "BURST_ANALYSIS_ROUTE_OUTPUT";
+
 	public static final String QUERY_ENHANCE_NODE_OUTPUT = "QUERY_ENHANCE_NODE_OUTPUT";
 
 	public static final String FEASIBILITY_ASSESSMENT_NODE_OUTPUT = "FEASIBILITY_ASSESSMENT_NODE_OUTPUT";
@@ -102,6 +104,10 @@ public final class Constant {
 
 	public static final String INTENT_RECOGNITION_NODE = "INTENT_RECOGNITION_NODE";
 
+	public static final String BURST_ANALYSIS_ROUTE_NODE = "BURST_ANALYSIS_ROUTE_NODE";
+
+	public static final String BURST_ANALYSIS_NODE = "BURST_ANALYSIS_NODE";
+
 	public static final String EVIDENCE_RECALL_NODE = "EVIDENCE_RECALL_NODE";
 
 	public static final String QUERY_ENHANCE_NODE = "QUERY_ENHANCE_NODE";
@@ -154,6 +160,20 @@ public final class Constant {
 
 	// Human feedback data payload
 	public static final String HUMAN_FEEDBACK_DATA = "HUMAN_FEEDBACK_DATA";
+
+	public static final String ROUTE_SCENE = "ROUTE_SCENE";
+
+	public static final String ROUTE_CONFIDENCE = "ROUTE_CONFIDENCE";
+
+	public static final String ROUTE_REASON = "ROUTE_REASON";
+
+	public static final String THREAD_ROUTE_CONTEXT = "THREAD_ROUTE_CONTEXT";
+
+	public static final String BURST_ANALYSIS_API_OUTPUT = "BURST_ANALYSIS_API_OUTPUT";
+
+	public static final String ROUTE_SCENE_BURST_ANALYSIS = "BURST_ANALYSIS";
+
+	public static final String ROUTE_SCENE_DEFAULT_GRAPH = "DEFAULT_GRAPH";
 
 	// StreamEvent 常量
 	public static final String STREAM_EVENT_COMPLETE = "complete";

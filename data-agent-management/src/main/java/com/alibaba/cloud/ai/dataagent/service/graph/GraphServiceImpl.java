@@ -23,6 +23,8 @@ import static com.alibaba.cloud.ai.dataagent.constant.Constant.INPUT_KEY;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.IS_ONLY_NL2SQL;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.LIGHTWEIGHT_SQL_RESULT_MODE;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.MULTI_TURN_CONTEXT;
+import static com.alibaba.cloud.ai.dataagent.constant.Constant.ROUTE_SCENE_BURST_ANALYSIS;
+import static com.alibaba.cloud.ai.dataagent.constant.Constant.ROUTE_SCENE_DEFAULT_GRAPH;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.SQL_GENERATE_OUTPUT;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.SQL_REGENERATE_REASON;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.SQL_EXECUTE_NODE_OUTPUT;
@@ -45,6 +47,7 @@ import com.alibaba.cloud.ai.dataagent.service.semantic.SemanticModelService;
 import com.alibaba.cloud.ai.dataagent.util.JsonUtil;
 import com.alibaba.cloud.ai.dataagent.util.StateUtil;
 import com.alibaba.cloud.ai.dataagent.vo.GraphNodeResponse;
+import com.alibaba.cloud.ai.dataagent.workflow.node.BurstAnalysisNode;
 import com.alibaba.cloud.ai.dataagent.workflow.node.PlannerNode;
 import com.alibaba.cloud.ai.graph.CompileConfig;
 import com.alibaba.cloud.ai.graph.CompiledGraph;
@@ -630,9 +633,7 @@ public class GraphServiceImpl implements GraphService {
 		}
 		if (!isTypeSign) {
 			context.appendOutput(chunk);
-			if (PlannerNode.class.getSimpleName().equals(node)) {
-				multiTurnContextManager.appendPlannerChunk(threadId, chunk);
-			}
+			recordMultiTurnChunk(threadId, node, textType, chunk);
 			GraphNodeResponse response = GraphNodeResponse.builder()
 				.agentId(request.getAgentId())
 				.threadId(threadId)
@@ -646,6 +647,19 @@ public class GraphServiceImpl implements GraphService {
 						threadId, result);
 				stopStreamProcessing(threadId);
 			}
+		}
+	}
+
+	private void recordMultiTurnChunk(String threadId, String node, TextType textType, String chunk) {
+		if (PlannerNode.class.getSimpleName().equals(node)) {
+			multiTurnContextManager.setRouteScene(threadId, ROUTE_SCENE_DEFAULT_GRAPH);
+			multiTurnContextManager.appendPlannerChunk(threadId, chunk);
+			return;
+		}
+
+		if (BurstAnalysisNode.class.getSimpleName().equals(node) && TextType.MARK_DOWN.equals(textType)) {
+			multiTurnContextManager.setRouteScene(threadId, ROUTE_SCENE_BURST_ANALYSIS);
+			multiTurnContextManager.appendAssistantChunk(threadId, chunk);
 		}
 	}
 

@@ -29,6 +29,11 @@ public class PromptConstant {
 		return new PromptTemplate(PromptLoader.loadPrompt("intent-recognition"));
 	}
 
+	// burst-analysis-route
+	public static PromptTemplate getBurstAnalysisRoutePromptTemplate() {
+		return new PromptTemplate(PromptLoader.loadPrompt("burst-analysis-route"));
+	}
+
 	// evidence-query-rewrite
 	public static PromptTemplate getEvidenceQueryRewritePromptTemplate() {
 		return new PromptTemplate(PromptLoader.loadPrompt("evidence-query-rewrite"));
