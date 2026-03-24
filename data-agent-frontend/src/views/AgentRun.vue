@@ -390,6 +390,7 @@
   } from '@/services/graph';
   import { type Agent } from '@/services/agent';
   import {
+    type ReferencePreviewData,
     type ResultData,
     type ResultSetData,
     type ResultSetDisplayConfig,
@@ -606,6 +607,7 @@
 
           const request: GraphRequest = {
             agentId: agentId.value,
+            sessionId: currentSession.value.id,
             query: userInput.value,
             humanFeedback: requestOptions.value.humanFeedback,
             nl2sqlOnly: requestOptions.value.nl2sqlOnly,
@@ -666,6 +668,7 @@
 
           const saveNodeMessage = (node: GraphNodeResponse[]): Promise<void> => {
             if (!node || !node.length) return Promise.resolve();
+            const metadata = buildNodeMetadata(node, sessionState.lastRequest?.query);
 
             // 特殊处理RESULT_SET节点
             if (node.length > 0 && node[0].textType === TextType.RESULT_SET) {
@@ -678,6 +681,7 @@
                     role: 'assistant',
                     content: node[0].text, // 保存原始JSON数据
                     messageType: 'result-set', // 使用特殊的messageType
+                    metadata,
                   };
                   return ChatService.saveMessage(sessionId, aiMessage).catch(error => {
                     console.error('保存AI消息失败:', error);
@@ -696,6 +700,7 @@
               role: 'assistant',
               content: nodeHtml,
               messageType: 'html',
+              metadata,
             };
 
             return ChatService.saveMessage(sessionId, aiMessage).catch(error => {
@@ -1010,6 +1015,115 @@
         ElMessage.success('Markdown报告下载成功');
       };
 
+      const getReferencePreviewField = (
+        preview: ReferencePreviewData | undefined,
+        ...keys: string[]
+      ): string => {
+        const attributes = preview?.attributes || {};
+        for (const key of keys) {
+          const value = attributes[key];
+          if (value) {
+            return value;
+          }
+        }
+        return '';
+      };
+
+      const buildReferencePreviewHtml = (preview: ReferencePreviewData | undefined): string => {
+        if (!preview) {
+          return '';
+        }
+        const ordinal = preview.rowOrdinal || 1;
+        const entityLabel = preview.entityType === 'pipe' ? '管段' : preview.entityType || '对象';
+        const summaryText = preview.supplementalReference
+          ? `已为后续追问锁定第 ${ordinal} 条可引用${entityLabel}`
+          : `第 ${ordinal} 条可引用${entityLabel}`;
+        const fields = [
+          { label: '引用对象类型', value: entityLabel },
+          { label: '第几条', value: `第 ${ordinal} 条` },
+          { label: 'gid', value: preview.gid || '' },
+          { label: 'layerId', value: preview.layerId || '' },
+          { label: '管径', value: getReferencePreviewField(preview, '管径', 'diameter') },
+          { label: '管材', value: getReferencePreviewField(preview, '管材', 'material') },
+          { label: '管长', value: getReferencePreviewField(preview, '管长', 'length') },
+          { label: '起点编号', value: getReferencePreviewField(preview, 'stnod', '起点编号') },
+          { label: '终点编号', value: getReferencePreviewField(preview, 'ednod', '终点编号') },
+        ].filter(item => item.value);
+
+        const fieldHtml = fields
+          .map(
+            item => `
+              <div class="reference-preview-item">
+                <span class="reference-preview-label">${escapeHtml(item.label)}</span>
+                <span class="reference-preview-value">${escapeHtml(item.value)}</span>
+              </div>
+            `,
+          )
+          .join('');
+
+        return `
+          <div class="reference-preview-card">
+            <div class="reference-preview-title">首条可引用数据</div>
+            <div class="reference-preview-summary">${escapeHtml(summaryText)}</div>
+            <div class="reference-preview-grid">${fieldHtml}</div>
+          </div>
+        `;
+      };
+
+      const extractReferencePreviewFromNode = (
+        node: GraphNodeResponse[],
+      ): ReferencePreviewData | undefined => {
+        if (!node || !node.length) {
+          return undefined;
+        }
+        for (const item of node) {
+          if (item.textType !== TextType.RESULT_SET || !item.text) {
+            continue;
+          }
+          try {
+            const resultData: ResultData = JSON.parse(item.text);
+            if (resultData.referencePreview?.gid) {
+              return resultData.referencePreview;
+            }
+          } catch (error) {
+            console.warn('提取referencePreview失败:', error);
+          }
+        }
+        return undefined;
+      };
+
+      const buildNodeMetadata = (
+        node: GraphNodeResponse[],
+        querySummary?: string,
+      ): string | undefined => {
+        const referencePreview = extractReferencePreviewFromNode(node);
+        let referenceTargets: ReferencePreviewData[] | undefined;
+        for (const item of node) {
+          if (item.textType !== TextType.RESULT_SET || !item.text) {
+            continue;
+          }
+          try {
+            const resultData: ResultData = JSON.parse(item.text);
+            if (resultData.referenceTargets?.length) {
+              referenceTargets = resultData.referenceTargets;
+            }
+            break;
+          } catch (error) {
+            console.warn('提取referenceTargets失败:', error);
+          }
+        }
+        if (!referencePreview && (!referenceTargets || !referenceTargets.length)) {
+          return undefined;
+        }
+        return JSON.stringify({
+          nodeName: node[0]?.nodeName || '',
+          threadId: node[0]?.threadId || '',
+          querySummary: querySummary || '',
+          referencePreview,
+          referenceTargets,
+        });
+      };
+
       // 生成节点容器的HTML代码
       const generateNodeHtml = (node: GraphNodeResponse[]) => {
         const content = formatNodeContent(node);
@@ -1086,6 +1200,7 @@
               // 解析JSON字符串
               const resultData: ResultData = JSON.parse(node[idx].text);
               const resultSetData = resultData.resultSet;
+              content += buildReferencePreviewHtml(resultData.referencePreview);
 
               // 检查是否有错误信息
               if (resultSetData.errorMsg) {
@@ -1218,6 +1333,7 @@
           if (sessionState.nodeBlocks && sessionState.nodeBlocks.length > 0) {
             const saveNodeMessage = (node: GraphNodeResponse[]): Promise<void> => {
               if (!node || !node.length) return Promise.resolve();
+              const metadata = buildNodeMetadata(node, sessionState.lastRequest?.query);
 
               const nodeHtml = compressLargeNodeHtml(generateNodeHtml(node));
 
@@ -1226,6 +1342,7 @@
                 role: 'assistant',
                 content: nodeHtml,
                 messageType: 'html',
+                metadata,
               };
 
               return ChatService.saveMessage(sessionId, aiMessage).catch(error => {
@@ -1964,6 +2081,54 @@
 
   .result-set-message {
     width: 100%;
+  }
+
+  .reference-preview-card {
+    margin-bottom: 16px;
+    padding: 16px;
+    border-radius: 12px;
+    border: 1px solid #d9ecff;
+    background: linear-gradient(180deg, #f5fbff 0%, #eef7ff 100%);
+  }
+
+  .reference-preview-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1f2d3d;
+    margin-bottom: 8px;
+  }
+
+  .reference-preview-summary {
+    margin-bottom: 12px;
+    color: #3c4a5d;
+    line-height: 1.6;
+  }
+
+  .reference-preview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 8px 12px;
+  }
+
+  .reference-preview-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.72);
+  }
+
+  .reference-preview-label {
+    font-size: 12px;
+    color: #6b7280;
+  }
+
+  .reference-preview-value {
+    font-size: 13px;
+    font-weight: 600;
+    color: #111827;
+    word-break: break-word;
   }
 
   /* 响应式设计 */

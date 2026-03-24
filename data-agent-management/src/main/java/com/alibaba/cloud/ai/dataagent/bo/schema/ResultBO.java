@@ -15,6 +15,7 @@
  */
 package com.alibaba.cloud.ai.dataagent.bo.schema;
 
+import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -29,5 +30,9 @@ public class ResultBO {
 	private ResultSetBO resultSet;
 
 	private DisplayStyleBO displayStyle;
+
+	private ReferencePreviewBO referencePreview;
+
+	private List<ReferenceTargetBO> referenceTargets;
 
 }

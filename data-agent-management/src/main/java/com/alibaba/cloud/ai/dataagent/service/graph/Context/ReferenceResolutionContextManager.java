@@ -39,6 +39,13 @@ public class ReferenceResolutionContextManager {
 		return latestReferenceContext.get(threadId);
 	}
 
+	public void clear(String threadId) {
+		if (StringUtils.isBlank(threadId)) {
+			return;
+		}
+		latestReferenceContext.remove(threadId);
+	}
+
 	public record ReferenceContext(String querySummary, String entityType) {
 	}
 

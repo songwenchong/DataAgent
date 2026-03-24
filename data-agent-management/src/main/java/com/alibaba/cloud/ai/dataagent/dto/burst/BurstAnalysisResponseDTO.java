@@ -51,6 +51,8 @@ public class BurstAnalysisResponseDTO {
 
 	private Integer pipesCount;
 
+	private Integer affectedUserCount;
+
 	private String pipesSummary;
 
 	private List<String> mustCloseValves;

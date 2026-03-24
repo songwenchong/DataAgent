@@ -23,8 +23,10 @@ import static com.alibaba.cloud.ai.dataagent.constant.Constant.INPUT_KEY;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.IS_ONLY_NL2SQL;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.LIGHTWEIGHT_SQL_RESULT_MODE;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.MULTI_TURN_CONTEXT;
+import static com.alibaba.cloud.ai.dataagent.constant.Constant.ORIGINAL_INPUT_KEY;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.ROUTE_SCENE_BURST_ANALYSIS;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.ROUTE_SCENE_DEFAULT_GRAPH;
+import static com.alibaba.cloud.ai.dataagent.constant.Constant.SESSION_ID;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.SQL_GENERATE_OUTPUT;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.SQL_REGENERATE_REASON;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.SQL_EXECUTE_NODE_OUTPUT;
@@ -40,7 +42,11 @@ import com.alibaba.cloud.ai.dataagent.dto.search.SqlResultResponse;
 import com.alibaba.cloud.ai.dataagent.bo.schema.ResultSetBO;
 import com.alibaba.cloud.ai.dataagent.entity.SemanticModel;
 import com.alibaba.cloud.ai.dataagent.enums.TextType;
+import com.alibaba.cloud.ai.dataagent.service.graph.Context.BurstAnalysisContextManager;
+import com.alibaba.cloud.ai.dataagent.service.graph.Context.ClarificationContextManager;
 import com.alibaba.cloud.ai.dataagent.service.graph.Context.MultiTurnContextManager;
+import com.alibaba.cloud.ai.dataagent.service.graph.Context.QueryResultContextManager;
+import com.alibaba.cloud.ai.dataagent.service.graph.Context.ReferenceResolutionContextManager;
 import com.alibaba.cloud.ai.dataagent.service.graph.Context.StreamContext;
 import com.alibaba.cloud.ai.dataagent.service.langfuse.LangfuseService;
 import com.alibaba.cloud.ai.dataagent.service.semantic.SemanticModelService;
@@ -66,6 +72,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -93,18 +100,35 @@ public class GraphServiceImpl implements GraphService {
 
 	private final ConcurrentHashMap<String, StreamContext> streamContextMap = new ConcurrentHashMap<>();
 
+	private final ConcurrentHashMap<String, String> threadSessionBindings = new ConcurrentHashMap<>();
+
 	private final MultiTurnContextManager multiTurnContextManager;
+
+	private final QueryResultContextManager queryResultContextManager;
+
+	private final BurstAnalysisContextManager burstAnalysisContextManager;
+
+	private final ReferenceResolutionContextManager referenceResolutionContextManager;
+
+	private final ClarificationContextManager clarificationContextManager;
 
 	private final LangfuseService langfuseReporter;
 
 	private final SemanticModelService semanticModelService;
 
 	public GraphServiceImpl(@Qualifier("nl2sqlGraph") StateGraph stateGraph, ExecutorService executorService,
-			MultiTurnContextManager multiTurnContextManager, LangfuseService langfuseReporter,
+			MultiTurnContextManager multiTurnContextManager, QueryResultContextManager queryResultContextManager,
+			BurstAnalysisContextManager burstAnalysisContextManager,
+			ReferenceResolutionContextManager referenceResolutionContextManager,
+			ClarificationContextManager clarificationContextManager, LangfuseService langfuseReporter,
 			SemanticModelService semanticModelService) throws GraphStateException {
 		this.compiledGraph = stateGraph.compile(CompileConfig.builder().interruptBefore(HUMAN_FEEDBACK_NODE).build());
 		this.executor = executorService;
 		this.multiTurnContextManager = multiTurnContextManager;
+		this.queryResultContextManager = queryResultContextManager;
+		this.burstAnalysisContextManager = burstAnalysisContextManager;
+		this.referenceResolutionContextManager = referenceResolutionContextManager;
+		this.clarificationContextManager = clarificationContextManager;
 		this.langfuseReporter = langfuseReporter;
 		this.semanticModelService = semanticModelService;
 	}
@@ -134,7 +158,9 @@ public class GraphServiceImpl implements GraphService {
 						Map.of(IS_ONLY_NL2SQL, false, INPUT_KEY, graphRequest.getQuery(), AGENT_ID,
 								graphRequest.getAgentId(), HUMAN_REVIEW_ENABLED, false,
 								LIGHTWEIGHT_SQL_RESULT_MODE, true, MULTI_TURN_CONTEXT, "",
-								TRACE_THREAD_ID, graphRequest.getThreadId()),
+								ORIGINAL_INPUT_KEY, graphRequest.getQuery(),
+								TRACE_THREAD_ID, graphRequest.getThreadId(), SESSION_ID,
+								graphRequest.getSessionId() == null ? "" : graphRequest.getSessionId()),
 						RunnableConfig.builder().threadId(graphRequest.getThreadId()).build())
 				.orElseThrow(() -> new IllegalStateException("Graph execution returned empty state"));
 			return buildSqlResultResponse(graphRequest, state);
@@ -474,6 +500,7 @@ public class GraphServiceImpl implements GraphService {
 			log.warn("StreamContext already cleaned for threadId: {}, skipping stream start", threadId);
 			return;
 		}
+		ensureSessionIsolation(threadId, graphRequest.getSessionId());
 		Span span = langfuseReporter.startLLMSpan("graph-stream", graphRequest);
 		context.setSpan(span);
 
@@ -483,7 +510,9 @@ public class GraphServiceImpl implements GraphService {
 		multiTurnContextManager.beginTurn(threadId, query);
 		Flux<NodeOutput> nodeOutputFlux = compiledGraph.stream(
 				Map.of(IS_ONLY_NL2SQL, nl2sqlOnly, INPUT_KEY, query, AGENT_ID, agentId, HUMAN_REVIEW_ENABLED,
-						humanReviewEnabled, MULTI_TURN_CONTEXT, multiTurnContext, TRACE_THREAD_ID, threadId),
+						humanReviewEnabled, MULTI_TURN_CONTEXT, multiTurnContext, ORIGINAL_INPUT_KEY, query,
+						TRACE_THREAD_ID, threadId,
+						SESSION_ID, graphRequest.getSessionId() == null ? "" : graphRequest.getSessionId()),
 				RunnableConfig.builder().threadId(threadId).build());
 		subscribeToFlux(context, nodeOutputFlux, graphRequest, agentId, threadId);
 	}
@@ -503,6 +532,7 @@ public class GraphServiceImpl implements GraphService {
 			log.warn("StreamContext already cleaned for threadId: {}, skipping stream start", threadId);
 			return;
 		}
+		ensureSessionIsolation(threadId, graphRequest.getSessionId());
 		Span span = langfuseReporter.startLLMSpan("graph-feedback", graphRequest);
 		context.setSpan(span);
 
@@ -517,6 +547,7 @@ public class GraphServiceImpl implements GraphService {
 		Map<String, Object> stateUpdate = new HashMap<>();
 		stateUpdate.put(HUMAN_FEEDBACK_DATA, feedbackData);
 		stateUpdate.put(MULTI_TURN_CONTEXT, multiTurnContext);
+		stateUpdate.put(SESSION_ID, graphRequest.getSessionId() == null ? "" : graphRequest.getSessionId());
 
 		RunnableConfig baseConfig = RunnableConfig.builder().threadId(threadId).build();
 		RunnableConfig updatedConfig;
@@ -666,6 +697,34 @@ public class GraphServiceImpl implements GraphService {
 			multiTurnContextManager.setRouteScene(threadId, ROUTE_SCENE_BURST_ANALYSIS);
 			multiTurnContextManager.appendAssistantChunk(threadId, chunk);
 		}
+	}
+
+	private void ensureSessionIsolation(String threadId, String sessionId) {
+		if (!StringUtils.hasText(threadId)) {
+			return;
+		}
+		String normalizedSessionId = StringUtils.hasText(sessionId) ? sessionId : "";
+		String previousSessionId = threadSessionBindings.putIfAbsent(threadId, normalizedSessionId);
+		if (previousSessionId == null) {
+			log.info("[CTX_TRACE][SESSION_ISOLATION][BIND][threadId={}][sessionId={}]", threadId, normalizedSessionId);
+			return;
+		}
+		if (Objects.equals(previousSessionId, normalizedSessionId)) {
+			return;
+		}
+		log.info(
+				"[CTX_TRACE][SESSION_ISOLATION][RESET_THREAD_CONTEXT][threadId={}] previousSessionId={} currentSessionId={}",
+				threadId, previousSessionId, normalizedSessionId);
+		clearThreadScopedContexts(threadId);
+		threadSessionBindings.put(threadId, normalizedSessionId);
+	}
+
+	private void clearThreadScopedContexts(String threadId) {
+		multiTurnContextManager.clear(threadId);
+		queryResultContextManager.clear(threadId);
+		burstAnalysisContextManager.clear(threadId);
+		referenceResolutionContextManager.clear(threadId);
+		clarificationContextManager.clear(threadId);
 	}
 
 }

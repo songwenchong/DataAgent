@@ -40,6 +40,13 @@ public class BurstAnalysisContextManager {
 		return contextByThread.get(threadId);
 	}
 
+	public void clear(String threadId) {
+		if (StringUtils.isBlank(threadId)) {
+			return;
+		}
+		contextByThread.remove(threadId);
+	}
+
 	public record BurstAnalysisContext(String sourceLayerId, String sourceGid, String analysisId,
 			List<String> pipeGids, List<ValveRef> valves, String networkName) {
 	}

@@ -18,6 +18,7 @@ package com.alibaba.cloud.ai.dataagent.workflow.node;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.PLAN_CURRENT_STEP;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.LIGHTWEIGHT_SQL_RESULT_MODE;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.REFERENCE_ENTITY_TYPE;
+import static com.alibaba.cloud.ai.dataagent.constant.Constant.SESSION_ID;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.SQL_EXECUTE_NODE_OUTPUT;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.SQL_GENERATE_COUNT;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.SQL_GENERATE_OUTPUT;
@@ -27,6 +28,8 @@ import static com.alibaba.cloud.ai.dataagent.constant.Constant.TRACE_THREAD_ID;
 
 import com.alibaba.cloud.ai.dataagent.bo.DbConfigBO;
 import com.alibaba.cloud.ai.dataagent.bo.schema.DisplayStyleBO;
+import com.alibaba.cloud.ai.dataagent.bo.schema.ReferencePreviewBO;
+import com.alibaba.cloud.ai.dataagent.bo.schema.ReferenceTargetBO;
 import com.alibaba.cloud.ai.dataagent.bo.schema.ResultBO;
 import com.alibaba.cloud.ai.dataagent.bo.schema.ResultSetBO;
 import com.alibaba.cloud.ai.dataagent.connector.DbQueryParameter;
@@ -37,8 +40,12 @@ import com.alibaba.cloud.ai.dataagent.dto.planner.ExecutionStep;
 import com.alibaba.cloud.ai.dataagent.enums.TextType;
 import com.alibaba.cloud.ai.dataagent.prompt.PromptHelper;
 import com.alibaba.cloud.ai.dataagent.properties.DataAgentProperties;
+import com.alibaba.cloud.ai.dataagent.service.graph.Context.MultiTurnContextManager;
 import com.alibaba.cloud.ai.dataagent.service.graph.Context.QueryResultContextManager;
+import com.alibaba.cloud.ai.dataagent.service.graph.Context.QueryResultContextManager.ReferenceTarget;
 import com.alibaba.cloud.ai.dataagent.service.graph.Context.QueryResultContextManager.QueryResultContext;
+import com.alibaba.cloud.ai.dataagent.service.graph.Context.SessionSemanticReferenceContextService;
+import com.alibaba.cloud.ai.dataagent.service.graph.Context.SessionSemanticReferenceContextService.SessionSemanticReferenceContext;
 import com.alibaba.cloud.ai.dataagent.service.llm.LlmService;
 import com.alibaba.cloud.ai.dataagent.service.nl2sql.Nl2SqlService;
 import com.alibaba.cloud.ai.dataagent.util.ChatResponseUtil;
@@ -94,12 +101,21 @@ public class SqlExecuteNode implements NodeAction {
 
 	private final QueryResultContextManager queryResultContextManager;
 
+	private final MultiTurnContextManager multiTurnContextManager;
+
+	private final SessionSemanticReferenceContextService sessionSemanticReferenceContextService;
+
 	private static final int SAMPLE_DATA_NUMBER = 20;
+
+	private static final int MAX_REFERENCE_TARGETS = 10;
 
 	private static final String EMPTY_RESULT_MESSAGE = "SQL执行完成，但未查询到符合条件的数据。";
 
 	private static final Pattern PRIMARY_TABLE_PATTERN = Pattern
 		.compile("(?i)\\bFROM\\s+\\[?([A-Za-z0-9_\\u4e00-\\u9fa5]+)\\]?");
+
+	private static final Pattern WHERE_CLAUSE_PATTERN = Pattern
+		.compile("(?is)\\bWHERE\\b\\s+(.*?)(?:\\bGROUP\\s+BY\\b|\\bORDER\\s+BY\\b|;\\s*$|$)");
 
 	@Override
 	public Map<String, Object> apply(OverAllState state) throws Exception {
@@ -172,8 +188,13 @@ public class SqlExecuteNode implements NodeAction {
 					// 调用大模型获取图表配置信息并填充到ResultSetBO中
 					DisplayStyleBO displayStyleBO = isLightweightSqlResultMode(state) ? null
 							: enrichResultSetWithChartConfig(state, resultSetBO);
+				ReferencePreviewBO referencePreview = saveLatestQueryResultContext(state, sqlQuery, resultSetBO, dbAccessor,
+						dbConfig);
 				resultBO.setResultSet(resultSetBO);
 				resultBO.setDisplayStyle(displayStyleBO);
+				resultBO.setReferencePreview(referencePreview);
+				resultBO.setReferenceTargets(buildReferenceTargetPayload(referencePreview, state, sqlQuery, resultSetBO,
+						dbAccessor, dbConfig));
 
 				String strResultSetJson = JsonUtil.getObjectMapper().writeValueAsString(resultSetBO);
 				String strResultJson = JsonUtil.getObjectMapper().writeValueAsString(resultBO);
@@ -206,7 +227,6 @@ public class SqlExecuteNode implements NodeAction {
 				// Prepare the final result object
 				// Store List of SQL query results for use by code execution node
 				// Reset sql generate count retry times when sql execute success
-				saveLatestQueryResultContext(state, sqlQuery, resultSetBO);
 				result.putAll(Map.of(SQL_EXECUTE_NODE_OUTPUT, updatedResults, SQL_REGENERATE_REASON,
 						SqlRetryDto.empty(), SQL_RESULT_LIST_MEMORY,
 						buildSqlResultMemory(state, currentStep, sqlQuery, resultSetBO), PLAN_CURRENT_STEP,
@@ -249,21 +269,108 @@ public class SqlExecuteNode implements NodeAction {
 		return mergedMemory;
 	}
 
-	private void saveLatestQueryResultContext(OverAllState state, String sqlQuery, ResultSetBO resultSetBO) {
+	private ReferencePreviewBO saveLatestQueryResultContext(OverAllState state, String sqlQuery, ResultSetBO resultSetBO,
+			Accessor dbAccessor, DbConfigBO dbConfig) {
 		String threadId = StateUtil.getStringValue(state, TRACE_THREAD_ID, "");
+		String sessionId = StateUtil.getStringValue(state, SESSION_ID, "");
 		if (StringUtils.isBlank(threadId) || resultSetBO == null || resultSetBO.getData() == null
 				|| resultSetBO.getData().isEmpty()) {
-			return;
+			return null;
 		}
 
-		String entityType = StateUtil.getStringValue(state, REFERENCE_ENTITY_TYPE, "");
-		QueryResultContext context = new QueryResultContext(entityType, extractPrimaryTableName(sqlQuery),
-				resultSetBO.getColumn(), List.copyOf(resultSetBO.getData()));
+		String tableName = extractPrimaryTableName(sqlQuery);
+		String entityType = inferEntityType(StateUtil.getStringValue(state, REFERENCE_ENTITY_TYPE, ""), tableName);
+		List<ReferenceTarget> referenceTargets = buildReferenceTargets(entityType, tableName, resultSetBO);
+		boolean supplementalReference = false;
+		if (referenceTargets.isEmpty()) {
+			referenceTargets = loadSupplementalReferenceTargets(sqlQuery, entityType, tableName, dbAccessor, dbConfig);
+			supplementalReference = !referenceTargets.isEmpty();
+		}
+		QueryResultContext context = new QueryResultContext(entityType, tableName, resultSetBO.getColumn(),
+				List.copyOf(resultSetBO.getData()), referenceTargets);
 		queryResultContextManager.save(threadId, context);
+		saveSessionSemanticReferenceContext(sessionId, entityType, referenceTargets, resultSetBO);
+		appendQueryResultSummary(threadId, resultSetBO, referenceTargets, entityType);
+		ReferencePreviewBO referencePreview = buildReferencePreview(referenceTargets, supplementalReference);
 		log.info(
-				"[CTX_TRACE][QUERY_RESULT][PREPARE_SAVE][threadId={}] entityType={} tableName={} columns={} rowCount={} sampleRows={}",
-				threadId, StringUtils.defaultString(entityType), extractPrimaryTableName(sqlQuery), resultSetBO.getColumn(),
-				resultSetBO.getData().size(), StringUtils.abbreviate(String.valueOf(resultSetBO.getData().stream().limit(3).toList()), 2000));
+				"[CTX_TRACE][QUERY_RESULT][PREPARE_SAVE][threadId={}] entityType={} tableName={} columns={} rowCount={} referenceTargets={} referencePreview={} supplementalReference={} sampleRows={}",
+				threadId, StringUtils.defaultString(entityType), tableName, resultSetBO.getColumn(),
+				resultSetBO.getData().size(), referenceTargets, referencePreview, supplementalReference,
+				StringUtils.abbreviate(String.valueOf(resultSetBO.getData().stream().limit(3).toList()), 2000));
+		return referencePreview;
+	}
+
+	private List<ReferenceTargetBO> buildReferenceTargetPayload(ReferencePreviewBO referencePreview, OverAllState state,
+			String sqlQuery, ResultSetBO resultSetBO, Accessor dbAccessor, DbConfigBO dbConfig) {
+		String tableName = extractPrimaryTableName(sqlQuery);
+		String entityType = inferEntityType(StateUtil.getStringValue(state, REFERENCE_ENTITY_TYPE, ""), tableName);
+		List<ReferenceTarget> referenceTargets = buildReferenceTargets(entityType, tableName, resultSetBO);
+		boolean supplementalReference = false;
+		if (referenceTargets.isEmpty()) {
+			referenceTargets = loadSupplementalReferenceTargets(sqlQuery, entityType, tableName, dbAccessor, dbConfig);
+			supplementalReference = !referenceTargets.isEmpty();
+		}
+		if ((referenceTargets == null || referenceTargets.isEmpty()) && referencePreview != null) {
+			return List.of(toReferenceTargetBO(referencePreview));
+		}
+		List<ReferenceTargetBO> payload = new ArrayList<>();
+		for (ReferenceTarget target : referenceTargets) {
+			payload.add(toReferenceTargetBO(target, supplementalReference));
+		}
+		return payload;
+	}
+
+	private void saveSessionSemanticReferenceContext(String sessionId, String entityType,
+			List<ReferenceTarget> referenceTargets, ResultSetBO resultSetBO) {
+		if (StringUtils.isBlank(sessionId) || referenceTargets == null || referenceTargets.isEmpty()) {
+			return;
+		}
+		SessionSemanticReferenceContext context = new SessionSemanticReferenceContext(entityType, List.copyOf(referenceTargets),
+				"sql_execute", buildQueryResultSummary(resultSetBO, referenceTargets, entityType));
+		sessionSemanticReferenceContextService.save(sessionId, context);
+	}
+
+	private ReferencePreviewBO buildReferencePreview(List<ReferenceTarget> referenceTargets, boolean supplementalReference) {
+		if (referenceTargets == null || referenceTargets.isEmpty()) {
+			return null;
+		}
+		ReferenceTarget firstTarget = referenceTargets.get(0);
+		return ReferencePreviewBO.builder()
+			.entityType(firstTarget.entityType())
+			.rowOrdinal(firstTarget.rowOrdinal())
+			.gid(firstTarget.gid())
+			.layerId(firstTarget.layerId())
+			.displayName(firstTarget.displayName())
+			.networkName(firstTarget.networkName())
+			.attributes(firstTarget.attributes())
+			.supplementalReference(supplementalReference)
+			.build();
+	}
+
+	private ReferenceTargetBO toReferenceTargetBO(ReferenceTarget target, boolean supplementalReference) {
+		return ReferenceTargetBO.builder()
+			.entityType(target.entityType())
+			.rowOrdinal(target.rowOrdinal())
+			.gid(target.gid())
+			.layerId(target.layerId())
+			.displayName(target.displayName())
+			.networkName(target.networkName())
+			.attributes(target.attributes())
+			.supplementalReference(supplementalReference)
+			.build();
+	}
+
+	private ReferenceTargetBO toReferenceTargetBO(ReferencePreviewBO preview) {
+		return ReferenceTargetBO.builder()
+			.entityType(preview.getEntityType())
+			.rowOrdinal(preview.getRowOrdinal())
+			.gid(preview.getGid())
+			.layerId(preview.getLayerId())
+			.displayName(preview.getDisplayName())
+			.networkName(preview.getNetworkName())
+			.attributes(preview.getAttributes())
+			.supplementalReference(preview.getSupplementalReference())
+			.build();
 	}
 
 	private void clearLatestQueryResultContext(OverAllState state) {
@@ -284,6 +391,232 @@ public class SqlExecuteNode implements NodeAction {
 
 	private boolean isLightweightSqlResultMode(OverAllState state) {
 		return StateUtil.getObjectValue(state, LIGHTWEIGHT_SQL_RESULT_MODE, Boolean.class, false);
+	}
+
+	private List<ReferenceTarget> buildReferenceTargets(String entityType, String tableName, ResultSetBO resultSetBO) {
+		if (resultSetBO == null || resultSetBO.getData() == null || resultSetBO.getData().isEmpty()) {
+			return List.of();
+		}
+
+		List<ReferenceTarget> targets = new ArrayList<>();
+		for (int i = 0; i < resultSetBO.getData().size(); i++) {
+			Map<String, String> row = resultSetBO.getData().get(i);
+			if (row == null || row.isEmpty()) {
+				continue;
+			}
+			String targetEntityType = inferEntityType(entityType, tableName);
+			String gid = extractValue(row, "gid", "pipe_gid", "valve_gid", "feature_gid", "objectid", "id");
+			if (StringUtils.isBlank(gid)) {
+				continue;
+			}
+			String layerId = extractValue(row, "layerid", "layer_id", "layerId");
+			if (StringUtils.isBlank(layerId) && "pipe".equalsIgnoreCase(targetEntityType)) {
+				layerId = "0";
+			}
+			if (StringUtils.isBlank(layerId)) {
+				continue;
+			}
+			targets.add(new ReferenceTarget(i + 1, targetEntityType, gid, layerId,
+					buildDisplayName(row, targetEntityType, gid), extractNetworkName(row), new HashMap<>(row)));
+		}
+		return targets;
+	}
+
+	private List<ReferenceTarget> loadSupplementalReferenceTargets(String sqlQuery, String entityType, String tableName,
+			Accessor dbAccessor, DbConfigBO dbConfig) {
+		if (!shouldLoadSupplementalPipeTarget(sqlQuery, entityType, tableName) || dbAccessor == null
+				|| dbConfig == null) {
+			return List.of();
+		}
+		String referenceSql = buildSupplementalPipeReferenceSql(sqlQuery, dbConfig, tableName);
+		if (StringUtils.isBlank(referenceSql)) {
+			return List.of();
+		}
+		try {
+			DbQueryParameter queryParameter = new DbQueryParameter();
+			queryParameter.setSql(referenceSql);
+			queryParameter.setSchema(dbConfig.getSchema());
+			ResultSetBO referenceResult = dbAccessor.executeSqlAndReturnObject(dbConfig, queryParameter);
+			List<ReferenceTarget> referenceTargets = buildReferenceTargets("pipe", tableName, referenceResult);
+			log.info("[CTX_TRACE][QUERY_RESULT][SUPPLEMENTAL_REFERENCE][tableName={}] sql={} targets={}", tableName,
+					referenceSql, referenceTargets);
+			return referenceTargets;
+		}
+		catch (Exception ex) {
+			log.warn("[CTX_TRACE][QUERY_RESULT][SUPPLEMENTAL_REFERENCE_FAIL][tableName={}] sql={}", tableName,
+					referenceSql, ex);
+			return List.of();
+		}
+	}
+
+	private boolean shouldLoadSupplementalPipeTarget(String sqlQuery, String entityType, String tableName) {
+		if (!"pipe".equalsIgnoreCase(inferEntityType(entityType, tableName))) {
+			return false;
+		}
+		if (StringUtils.isBlank(sqlQuery) || StringUtils.isBlank(tableName)) {
+			return false;
+		}
+		return sqlQuery.toLowerCase().contains("count(");
+	}
+
+	private String buildSupplementalPipeReferenceSql(String sqlQuery, DbConfigBO dbConfig, String tableName) {
+		String whereClause = extractWhereClause(sqlQuery);
+		if (StringUtils.isBlank(whereClause)) {
+			return "";
+		}
+		String dialect = StringUtils.defaultString(dbConfig.getDialectType()).toLowerCase();
+		String tableRef = "[" + tableName + "]";
+		String selectColumns =
+				"[gid], 0 AS [layerId], [管径], [管材], [管长], [stnod], [ednod]";
+		if (dialect.contains("sqlserver")) {
+			return "SELECT TOP " + MAX_REFERENCE_TARGETS + " " + selectColumns + " FROM " + tableRef + " WHERE "
+					+ whereClause + " ORDER BY [gid] ASC;";
+		}
+		return "SELECT gid, 0 AS layerId, 管径, 管材, 管长, stnod, ednod FROM " + tableName + " WHERE " + whereClause
+				+ " ORDER BY gid ASC LIMIT " + MAX_REFERENCE_TARGETS + ";";
+	}
+
+	private String extractWhereClause(String sqlQuery) {
+		if (StringUtils.isBlank(sqlQuery)) {
+			return "";
+		}
+		Matcher matcher = WHERE_CLAUSE_PATTERN.matcher(sqlQuery);
+		if (!matcher.find()) {
+			return "";
+		}
+		return StringUtils.trimToEmpty(matcher.group(1));
+	}
+
+	private String inferEntityType(String entityType, String tableName) {
+		if (StringUtils.isNotBlank(entityType)) {
+			return entityType.trim();
+		}
+		String normalizedTableName = StringUtils.defaultString(tableName).toLowerCase();
+		if (normalizedTableName.contains("lin") || normalizedTableName.contains("pipe")
+				|| normalizedTableName.contains("segment")) {
+			return "pipe";
+		}
+		if (normalizedTableName.contains("valve")) {
+			return "valve";
+		}
+		return "";
+	}
+
+	private String extractValue(Map<String, String> row, String... candidateKeys) {
+		if (row == null || row.isEmpty()) {
+			return "";
+		}
+		for (String candidateKey : candidateKeys) {
+			for (Map.Entry<String, String> entry : row.entrySet()) {
+				if (entry.getKey() != null && entry.getKey().equalsIgnoreCase(candidateKey)
+						&& StringUtils.isNotBlank(entry.getValue())) {
+					return entry.getValue().trim();
+				}
+			}
+		}
+		return "";
+	}
+
+	private String buildDisplayName(Map<String, String> row, String entityType, String gid) {
+		String explicitName = extractValue(row, "名称", "name", "设备名称", "管线名称");
+		if (StringUtils.isNotBlank(explicitName)) {
+			return explicitName;
+		}
+		if ("pipe".equalsIgnoreCase(entityType)) {
+			String diameter = extractValue(row, "管径", "diameter");
+			String material = extractValue(row, "管材", "material");
+			return "管段 gid=" + gid + (StringUtils.isNotBlank(diameter) ? " 管径=" + diameter : "")
+					+ (StringUtils.isNotBlank(material) ? " 管材=" + material : "");
+		}
+		return entityType + " gid=" + gid;
+	}
+
+	private String extractNetworkName(Map<String, String> row) {
+		return extractValue(row, "networkName", "network_name", "管网名称", "所属管网");
+	}
+
+	private void appendQueryResultSummary(String threadId, ResultSetBO resultSetBO, List<ReferenceTarget> referenceTargets,
+			String entityType) {
+		if (StringUtils.isBlank(threadId)) {
+			return;
+		}
+		String summaryText = buildQueryResultSummary(resultSetBO, referenceTargets, entityType);
+		if (StringUtils.isBlank(summaryText)) {
+			return;
+		}
+		multiTurnContextManager.appendAssistantChunk(threadId, "\n" + summaryText);
+	}
+
+	private String buildQueryResultSummary(ResultSetBO resultSetBO, List<ReferenceTarget> referenceTargets,
+			String entityType) {
+		List<String> columns = resultSetBO == null ? List.of() : resultSetBO.getColumn();
+		List<Map<String, String>> rows = resultSetBO == null ? List.of() : resultSetBO.getData();
+		String countValue = extractCountValue(columns, rows);
+		ReferenceTarget firstTarget = referenceTargets == null || referenceTargets.isEmpty() ? null : referenceTargets.get(0);
+		StringBuilder summary = new StringBuilder();
+		if (StringUtils.isNotBlank(countValue)) {
+			summary.append("统计结果共 ").append(countValue).append(" 条");
+		}
+		else if (rows != null && !rows.isEmpty()) {
+			summary.append("查询返回 ").append(rows.size()).append(" 条结果");
+		}
+		if (firstTarget != null) {
+			if (summary.length() > 0) {
+				summary.append("；");
+			}
+			summary.append("已保存 ").append(referenceTargets.size()).append(" 条可引用")
+				.append("pipe".equalsIgnoreCase(entityType) ? "管段候选" : "对象候选");
+			String semanticSummary = buildReferenceSemanticSummary(firstTarget);
+			if (StringUtils.isNotBlank(semanticSummary)) {
+				summary.append("，首条候选").append(semanticSummary);
+			}
+		}
+		if (summary.length() == 0) {
+			return "";
+		}
+		return summary.toString();
+	}
+
+	private String buildReferenceSemanticSummary(ReferenceTarget target) {
+		if (target == null) {
+			return "";
+		}
+		StringBuilder summary = new StringBuilder();
+		appendSemanticPart(summary, "为第 " + target.rowOrdinal() + " 条", true);
+		Map<String, String> attributes = target.attributes();
+		appendSemanticPart(summary, "管径 " + extractValue(attributes, "管径", "diameter"),
+				StringUtils.isNotBlank(extractValue(attributes, "管径", "diameter")));
+		appendSemanticPart(summary, "管材 " + extractValue(attributes, "管材", "material"),
+				StringUtils.isNotBlank(extractValue(attributes, "管材", "material")));
+		appendSemanticPart(summary, "管长 " + extractValue(attributes, "管长", "length"),
+				StringUtils.isNotBlank(extractValue(attributes, "管长", "length")));
+		appendSemanticPart(summary, "起点 " + extractValue(attributes, "stnod", "起点编号"),
+				StringUtils.isNotBlank(extractValue(attributes, "stnod", "起点编号")));
+		appendSemanticPart(summary, "终点 " + extractValue(attributes, "ednod", "终点编号"),
+				StringUtils.isNotBlank(extractValue(attributes, "ednod", "终点编号")));
+		return summary.toString();
+	}
+
+	private void appendSemanticPart(StringBuilder summary, String text, boolean present) {
+		if (!present || StringUtils.isBlank(text)) {
+			return;
+		}
+		if (!summary.isEmpty()) {
+			summary.append("，");
+		}
+		summary.append(text);
+	}
+
+	private String extractCountValue(List<String> columns, List<Map<String, String>> rows) {
+		if (columns == null || rows == null || rows.size() != 1 || columns.size() != 1) {
+			return "";
+		}
+		String column = StringUtils.defaultString(columns.get(0));
+		if (!"count".equalsIgnoreCase(column) && !"cnt".equalsIgnoreCase(column)
+				&& !"total".equalsIgnoreCase(column) && !"数量".equals(column)) {
+			return "";
+		}
+		return StringUtils.defaultString(rows.get(0).get(column));
 	}
 
 	/**

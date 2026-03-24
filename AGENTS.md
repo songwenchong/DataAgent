@@ -2,6 +2,7 @@
 
 - For repository-level development, debugging, documentation updates, workflow changes, or feature work on this project, start with [$dataagent-engineering](/Users/xiaoshi/Documents/code/AI/DataAgent/skills/dataagent-engineering/SKILL.md).
 - Use `/Users/xiaoshi/Documents/code/AI/DataAgent/docs/CODEBASE_GUIDE.md` as the primary code map.
+- Place all design and technical design documents under `/Users/xiaoshi/Documents/code/AI/DataAgent/docs/`. Do not create design documents in the repository root or other ad hoc directories unless the user explicitly asks for an exception.
 - Use `/Users/xiaoshi/Documents/code/AI/DataAgent/docs/agent6-pipe-network-tuning-notes-2026-03-18.md` when the task touches Graph workflow, schema recovery, vector persistence, run-page loops, or streaming failures.
 - When the user asks to start, restart, or verify the local DataAgent development environment, use [$start-data-agent](/Users/xiaoshi/Documents/code/AI/DataAgent/skills/start-data-agent/SKILL.md).
 - The default startup entrypoint is `/Users/xiaoshi/Documents/code/AI/DataAgent/scripts/start-data-agent.sh`.

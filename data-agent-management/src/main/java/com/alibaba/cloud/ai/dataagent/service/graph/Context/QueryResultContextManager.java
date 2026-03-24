@@ -59,14 +59,23 @@ public class QueryResultContextManager {
 		}
 		List<Map<String, String>> rows = context.rows();
 		List<Map<String, String>> sampleRows = rows == null ? List.of() : rows.stream().limit(3).toList();
+		List<ReferenceTarget> referenceTargets = context.referenceTargets();
+		List<ReferenceTarget> sampleTargets = referenceTargets == null ? List.of()
+				: referenceTargets.stream().limit(3).toList();
 		return "entityType=" + StringUtils.defaultString(context.entityType()) + ", tableName="
 				+ StringUtils.defaultString(context.tableName()) + ", columns=" + context.columns() + ", rowCount="
 				+ (rows == null ? 0 : rows.size()) + ", sampleRows="
-				+ StringUtils.abbreviate(String.valueOf(sampleRows), 2000);
+				+ StringUtils.abbreviate(String.valueOf(sampleRows), 1200) + ", referenceTargetCount="
+				+ (referenceTargets == null ? 0 : referenceTargets.size()) + ", sampleReferenceTargets="
+				+ StringUtils.abbreviate(String.valueOf(sampleTargets), 1200);
 	}
 
 	public record QueryResultContext(String entityType, String tableName, List<String> columns,
-			List<Map<String, String>> rows) {
+			List<Map<String, String>> rows, List<ReferenceTarget> referenceTargets) {
+	}
+
+	public record ReferenceTarget(int rowOrdinal, String entityType, String gid, String layerId, String displayName,
+			String networkName, Map<String, String> attributes) {
 	}
 
 }
