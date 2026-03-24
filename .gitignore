@@ -1,3 +1,8 @@
+.mvn/maven.config
+.run/*
+.trae/*
+.tools/*
+settings.xml
 # maven ignore
 .m2/
 target/
