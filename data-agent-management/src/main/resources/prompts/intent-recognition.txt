@@ -15,7 +15,17 @@ Classification rules:
 - Use this when the user is asking about GIS data, business data, or system data that requires querying the system.
 - This includes pipelines, pipe networks, valves, devices, work orders, alarms, warnings, monitoring data, events, counts, lists, details, status, affected scope, burst analysis, and follow-up references such as "the first pipeline", "that valve", or "those 12 valves".
 - Even if the question does not contain explicit spatial words, if it depends on business data in the system, classify it as `gis_spatial_query`.
-- For this intent, fill `entities` as much as possible. If nothing is obvious, return an empty object.
+- For this intent, fill `entities` as much as possible.
+- **Follow-up Semantic Fields in `entities`**:
+  - `query_kind`: `fresh_query` (new topic) | `result_followup` (asking about previous results)
+  - `follow_up_action`: `list` (show details/list) | `explain` (explain/summarize) | `reanalyze` (rerun analysis with changes)
+  - `target_entity`: `pipe` | `valve` | `work_order` | `device` | `unknown`
+  - `context_scope`: `previous_result` (general) | `previous_burst_result` (specifically from burst analysis) | `system_data`
+- **Few-shot examples**:
+  - `需关闭 2 个阀门，是哪2个` -> `query_kind: result_followup, follow_up_action: list, target_entity: valve, context_scope: previous_burst_result`
+  - `让第1个阀门失效后重新分析` -> `query_kind: result_followup, follow_up_action: reanalyze, target_entity: valve, context_scope: previous_burst_result`
+  - `对第二条数据进行爆管分析` -> `query_kind: result_followup, follow_up_action: reanalyze, target_entity: pipe, context_scope: previous_result`
+  - `刚才查到的工单有哪些` -> `query_kind: result_followup, follow_up_action: list, target_entity: work_order, context_scope: previous_result`
 - `reply_text` must be an empty string.
 - `classification` must be `analysis_capable_request`.
 

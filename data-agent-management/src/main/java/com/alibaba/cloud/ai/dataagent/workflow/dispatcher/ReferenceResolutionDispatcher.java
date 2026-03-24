@@ -15,13 +15,16 @@
  */
 package com.alibaba.cloud.ai.dataagent.workflow.dispatcher;
 
+import com.alibaba.cloud.ai.dataagent.dto.prompt.IntentRecognitionOutputDTO;
 import com.alibaba.cloud.ai.dataagent.dto.prompt.ReferenceResolutionOutputDTO;
 import com.alibaba.cloud.ai.dataagent.util.StateUtil;
 import com.alibaba.cloud.ai.graph.OverAllState;
 import com.alibaba.cloud.ai.graph.action.EdgeAction;
 
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.BURST_ANALYSIS_ROUTE_NODE;
+import static com.alibaba.cloud.ai.dataagent.constant.Constant.INTENT_RECOGNITION_NODE_OUTPUT;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.REFERENCE_RESOLUTION_NODE_OUTPUT;
+import static com.alibaba.cloud.ai.dataagent.constant.Constant.RESULT_FOLLOW_UP_ANSWER_NODE;
 import static com.alibaba.cloud.ai.graph.StateGraph.END;
 
 public class ReferenceResolutionDispatcher implements EdgeAction {
@@ -31,7 +34,23 @@ public class ReferenceResolutionDispatcher implements EdgeAction {
 		ReferenceResolutionOutputDTO output = StateUtil.getObjectValue(state, REFERENCE_RESOLUTION_NODE_OUTPUT,
 				ReferenceResolutionOutputDTO.class,
 				ReferenceResolutionOutputDTO.builder().needsUserConfirmation(false).build());
-		return output.isNeedsUserConfirmation() ? END : BURST_ANALYSIS_ROUTE_NODE;
+
+		if (output.isNeedsUserConfirmation()) {
+			return END;
+		}
+
+		IntentRecognitionOutputDTO intentOutput = StateUtil.getObjectValue(state, INTENT_RECOGNITION_NODE_OUTPUT,
+				IntentRecognitionOutputDTO.class);
+		if (intentOutput != null && intentOutput.getEntities() != null) {
+			String queryKind = (String) intentOutput.getEntities().get("query_kind");
+			String followUpAction = (String) intentOutput.getEntities().get("follow_up_action");
+			if ("result_followup".equalsIgnoreCase(queryKind)
+					&& ("list".equalsIgnoreCase(followUpAction) || "explain".equalsIgnoreCase(followUpAction))) {
+				return RESULT_FOLLOW_UP_ANSWER_NODE;
+			}
+		}
+
+		return BURST_ANALYSIS_ROUTE_NODE;
 	}
 
 }

@@ -61,21 +61,6 @@ public class IntentRecognitionNode implements NodeAction {
 
 	private static final String INTENT_HELLO = "hello";
 
-	private static final List<String> BUSINESS_ENTITY_KEYWORDS = List.of(
-			"\u5DE5\u5355", "\u7BA1\u7F51", "\u7BA1\u7EBF", "\u7BA1\u9053", "\u7BA1\u6BB5", "\u9600\u95E8",
-			"\u8BBE\u5907", "\u76D1\u6D4B", "\u544A\u8B66", "\u9884\u8B66", "\u4E8B\u4EF6", "\u7AD9\u70B9",
-			"\u4F20\u611F\u5668", "\u7206\u7BA1", "\u5173\u9600");
-
-	private static final List<String> DATA_QUERY_KEYWORDS = List.of(
-			"\u591A\u5C11", "\u51E0\u4E2A", "\u51E0\u6761", "\u67E5\u8BE2", "\u67E5\u770B", "\u7EDF\u8BA1",
-			"\u5217\u8868", "\u6570\u91CF", "\u8BE6\u60C5", "\u660E\u7EC6", "\u54EA\u4E9B", "\u60C5\u51B5",
-			"\u72B6\u6001", "\u5206\u6790", "\u5F71\u54CD", "\u8303\u56F4");
-
-	private static final List<String> BURST_ANALYSIS_KEYWORDS = List.of(
-			"\u7206\u7BA1", "\u5173\u9600", "\u5173\u54EA\u4E9B\u9600\u95E8", "\u5F71\u54CD\u8303\u56F4",
-			"\u4E8C\u6B21\u5173\u9600", "\u91CD\u65B0\u5206\u6790", "\u5931\u6548", "layerid", "gid",
-			"closevalves", "parentanalysisid");
-
 	private static final List<String> HELLO_KEYWORDS = List.of(
 			"\u4F60\u597D", "\u60A8\u597D", "hello", "hi", "\u55E8", "\u5728\u5417", "\u65E9\u4E0A\u597D",
 			"\u4E0B\u5348\u597D", "\u665A\u4E0A\u597D");
@@ -140,10 +125,6 @@ public class IntentRecognitionNode implements NodeAction {
 			return buildAnalysisOutput(CLASSIFICATION_PENDING, userInput);
 		}
 
-		if (looksLikeBurstAnalysisRequest(userInput) || looksLikeBusinessDataQuery(userInput)) {
-			return buildAnalysisOutput(CLASSIFICATION_ANALYSIS, userInput);
-		}
-
 		if (looksLikeGreeting(userInput)) {
 			IntentRecognitionOutputDTO output = new IntentRecognitionOutputDTO();
 			output.setClassification(CLASSIFICATION_DIRECT);
@@ -201,24 +182,6 @@ public class IntentRecognitionNode implements NodeAction {
 		}
 		String normalized = userInput.trim();
 		return normalized.length() <= 20 && containsAny(normalized, NETWORK_KEYWORDS);
-	}
-
-	private boolean looksLikeBusinessDataQuery(String userInput) {
-		if (userInput == null) {
-			return false;
-		}
-		String normalized = normalize(userInput);
-		boolean hasBusinessEntity = containsAny(normalized, BUSINESS_ENTITY_KEYWORDS);
-		boolean hasDataQueryIntent = containsAny(normalized, DATA_QUERY_KEYWORDS);
-		return hasBusinessEntity && hasDataQueryIntent;
-	}
-
-	private boolean looksLikeBurstAnalysisRequest(String userInput) {
-		if (userInput == null) {
-			return false;
-		}
-		String normalized = normalize(userInput);
-		return containsAny(normalized, BURST_ANALYSIS_KEYWORDS);
 	}
 
 	private boolean looksLikeGreeting(String userInput) {

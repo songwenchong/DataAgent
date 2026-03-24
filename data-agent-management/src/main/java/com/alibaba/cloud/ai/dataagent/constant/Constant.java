@@ -52,6 +52,8 @@ public final class Constant {
 
 	public static final String REFERENCE_RESOLUTION_NODE_OUTPUT = "REFERENCE_RESOLUTION_NODE_OUTPUT";
 
+	public static final String RESULT_FOLLOW_UP_OUTPUT = "RESULT_FOLLOW_UP_OUTPUT";
+
 	public static final String BURST_ANALYSIS_ROUTE_OUTPUT = "BURST_ANALYSIS_ROUTE_OUTPUT";
 
 	public static final String QUERY_ENHANCE_NODE_OUTPUT = "QUERY_ENHANCE_NODE_OUTPUT";
@@ -119,6 +121,8 @@ public final class Constant {
 	public static final String CLARIFICATION_NODE = "CLARIFICATION_NODE";
 
 	public static final String REFERENCE_RESOLUTION_NODE = "REFERENCE_RESOLUTION_NODE";
+
+	public static final String RESULT_FOLLOW_UP_ANSWER_NODE = "RESULT_FOLLOW_UP_ANSWER_NODE";
 
 	public static final String BURST_ANALYSIS_ROUTE_NODE = "BURST_ANALYSIS_ROUTE_NODE";
 

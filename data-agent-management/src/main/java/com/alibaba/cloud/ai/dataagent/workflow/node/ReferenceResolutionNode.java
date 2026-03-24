@@ -15,6 +15,7 @@
  */
 package com.alibaba.cloud.ai.dataagent.workflow.node;
 
+import com.alibaba.cloud.ai.dataagent.dto.prompt.IntentRecognitionOutputDTO;
 import com.alibaba.cloud.ai.dataagent.dto.prompt.ReferenceResolutionOutputDTO;
 import com.alibaba.cloud.ai.dataagent.service.graph.Context.BurstAnalysisContextManager;
 import com.alibaba.cloud.ai.dataagent.service.graph.Context.BurstAnalysisContextManager.BurstAnalysisContext;
@@ -42,6 +43,7 @@ import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.INPUT_KEY;
+import static com.alibaba.cloud.ai.dataagent.constant.Constant.INTENT_RECOGNITION_NODE_OUTPUT;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.REFERENCE_CONTEXT_SUMMARY;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.REFERENCE_ENTITY_TYPE;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.REFERENCE_ORDINAL;
@@ -56,7 +58,10 @@ import static com.alibaba.cloud.ai.dataagent.constant.Constant.TRACE_THREAD_ID;
 public class ReferenceResolutionNode implements NodeAction {
 
 	private static final Pattern ORDINAL_PATTERN =
-			Pattern.compile("\u7B2C\\s*([\u4E00\u4E8C\u4E09\u56DB\u4E94\u516D\u4E03\u516B\u4E5D\u5341\u767E0-9\\s]+)\\s*[\u6761\u4E2A\u9879\u6839]?"); // NOPMD
+			Pattern.compile("\u7B2C\\s*([\u4E00\u4E8C\u4E09\u56DB\u4E94\u516D\u4E03\u516B\u4E5D\u5341\u767E0-9\\s]+)\\s*[\u6761\u4E2A\u9879\u6839]"); // NOPMD
+
+	private static final Pattern QUANTITY_PATTERN =
+			Pattern.compile("(\\d+)\\s*[\u6761\u4E2A\u9879\u6839]");
 
 	private static final List<String> PIPE_ENTITY_KEYWORDS = List.of("\u7BA1\u7EBF", "\u7BA1\u9053",
 			"\u7BA1\u6BB5", "\u7BA1\u5B50");
@@ -106,10 +111,15 @@ public class ReferenceResolutionNode implements NodeAction {
 		String sessionId = StateUtil.getStringValue(state, SESSION_ID, "");
 		String userInput = StateUtil.getStringValue(state, INPUT_KEY, "");
 		String normalized = normalize(userInput);
+
+		IntentRecognitionOutputDTO intentOutput = StateUtil.getObjectValue(state, INTENT_RECOGNITION_NODE_OUTPUT,
+				IntentRecognitionOutputDTO.class);
+
 		ReferenceContext referenceContext = referenceContextManager.get(threadId);
 		BurstAnalysisContext burstAnalysisContext = burstAnalysisContextManager.get(threadId);
 		SessionSemanticReferenceContext sessionSemanticContext = sessionSemanticReferenceContextService.resolve(sessionId);
-		String entityType = detectEntityType(normalized, referenceContext);
+
+		String entityType = detectEntityType(normalized, referenceContext, intentOutput);
 		String ordinal = detectOrdinal(userInput);
 		boolean hasReferenceMarker = hasReferenceMarker(normalized, ordinal);
 		log.info(
@@ -312,7 +322,15 @@ public class ReferenceResolutionNode implements NodeAction {
 		return "";
 	}
 
-	private String detectEntityType(String normalizedInput, ReferenceContext referenceContext) {
+	private String detectEntityType(String normalizedInput, ReferenceContext referenceContext,
+			IntentRecognitionOutputDTO intentOutput) {
+		if (intentOutput != null && intentOutput.getEntities() != null) {
+			String targetEntity = (String) intentOutput.getEntities().get("target_entity");
+			if (StringUtils.isNotBlank(targetEntity) && !"unknown".equalsIgnoreCase(targetEntity)) {
+				return targetEntity;
+			}
+		}
+
 		if (containsAny(normalizedInput, VALVE_ENTITY_KEYWORDS)) {
 			return "valve";
 		}
@@ -332,6 +350,11 @@ public class ReferenceResolutionNode implements NodeAction {
 		if (StringUtils.isBlank(userInput)) {
 			return "";
 		}
+		// If it's a pure quantity like "2个", don't treat it as ordinal
+		if (QUANTITY_PATTERN.matcher(userInput).matches()) {
+			return "";
+		}
+
 		Matcher matcher = ORDINAL_PATTERN.matcher(StringUtils.defaultString(userInput));
 		return matcher.find() ? matcher.group() : "";
 	}

@@ -16,6 +16,7 @@
 package com.alibaba.cloud.ai.dataagent.workflow.node;
 
 import com.alibaba.cloud.ai.dataagent.dto.prompt.BurstAnalysisRouteOutputDTO;
+import com.alibaba.cloud.ai.dataagent.dto.prompt.IntentRecognitionOutputDTO;
 import com.alibaba.cloud.ai.dataagent.prompt.PromptHelper;
 import com.alibaba.cloud.ai.dataagent.service.llm.LlmService;
 import com.alibaba.cloud.ai.dataagent.util.JsonParseUtil;
@@ -31,6 +32,7 @@ import org.springframework.stereotype.Component;
 
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.BURST_ANALYSIS_ROUTE_OUTPUT;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.INPUT_KEY;
+import static com.alibaba.cloud.ai.dataagent.constant.Constant.INTENT_RECOGNITION_NODE_OUTPUT;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.IS_ONLY_NL2SQL;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.LIGHTWEIGHT_SQL_RESULT_MODE;
 import static com.alibaba.cloud.ai.dataagent.constant.Constant.MULTI_TURN_CONTEXT;
@@ -58,6 +60,9 @@ public class BurstAnalysisRouteNode implements NodeAction {
 			"\u4e8b\u6545\u7ba1\u6bb5", "\u5f71\u54cd\u8303\u56f4", "\u5173\u9600", "\u505c\u6c34\u8303\u56f4",
 			"\u62a2\u4fee", "\u6f0f\u635f\u5b9a\u4f4d");
 
+	private static final List<String> REANALYZE_KEYWORDS = List.of("\u91cd\u65b0\u5206\u6790", "\u4e8c\u6b21\u5173\u9600",
+			"\u5931\u6548", "\u5931\u7075");
+
 	private static final List<String> FOLLOW_UP_REFERENCE_KEYWORDS = List.of("\u8fd9\u4e2a", "\u90a3\u4e2a",
 			"\u4e0a\u8ff0", "\u4e0a\u9762", "\u5b83", "\u4ed6\u4eec", "\u7ee7\u7eed", "\u8fdb\u4e00\u6b65");
 
@@ -65,8 +70,8 @@ public class BurstAnalysisRouteNode implements NodeAction {
 			"\u7b2c\u4e00\u6839", "\u7b2c\u4e00\u6839\u7ba1\u6bb5", "\u8fd9\u6761", "\u8fd9\u6839", "\u8be5\u7ba1\u6bb5",
 			"\u8be5\u7ba1\u7ebf", "\u4e0a\u4e00\u6761", "\u4e0a\u4e00\u6839");
 
-	private static final List<String> BURST_FOLLOW_UP_KEYWORDS = List.of("\u9600\u95e8", "\u5173\u9600",
-			"\u505c\u6c34", "\u62a2\u4fee", "\u7ba1\u6bb5", "\u5f71\u54cd\u8303\u56f4");
+	private static final List<String> BURST_FOLLOW_UP_KEYWORDS = List.of("\u7ba1\u6bb5", "\u5f71\u54cd\u8303\u56f4",
+			"\u505c\u6c34", "\u62a2\u4fee");
 
 	private static final List<String> GENERAL_DEVICE_WARNING_KEYWORDS = List.of("\u9884\u8b66",
 			"\u76d1\u6d4b\u8bbe\u5907", "\u8bbe\u5907", "\u544a\u8b66");
@@ -77,9 +82,11 @@ public class BurstAnalysisRouteNode implements NodeAction {
 		boolean lightweightSqlResultMode = state.value(LIGHTWEIGHT_SQL_RESULT_MODE, false);
 		String userInput = StateUtil.getStringValue(state, INPUT_KEY, "");
 		String multiTurn = StateUtil.getStringValue(state, MULTI_TURN_CONTEXT, "");
+		IntentRecognitionOutputDTO intentOutput = StateUtil.getObjectValue(state, INTENT_RECOGNITION_NODE_OUTPUT,
+				IntentRecognitionOutputDTO.class);
 
 		BurstAnalysisRouteOutputDTO routeOutput = resolveRoute(userInput, multiTurn, nl2sqlOnly,
-				lightweightSqlResultMode);
+				lightweightSqlResultMode, intentOutput);
 		log.info("Burst-analysis route resolved: scene={}, confidence={}, reason={}", routeOutput.getRouteScene(),
 				routeOutput.getRouteConfidence(), routeOutput.getRouteReason());
 
@@ -89,10 +96,18 @@ public class BurstAnalysisRouteNode implements NodeAction {
 	}
 
 	private BurstAnalysisRouteOutputDTO resolveRoute(String userInput, String multiTurn, boolean nl2sqlOnly,
-			boolean lightweightSqlResultMode) {
+			boolean lightweightSqlResultMode, IntentRecognitionOutputDTO intentOutput) {
 		if (nl2sqlOnly || lightweightSqlResultMode) {
 			return buildRoute(ROUTE_SCENE_DEFAULT_GRAPH, 1.0D,
 					"Special SQL execution mode detected, bypass burst-analysis routing");
+		}
+
+		if (intentOutput != null && intentOutput.getEntities() != null) {
+			String followUpAction = (String) intentOutput.getEntities().get("follow_up_action");
+			if ("reanalyze".equalsIgnoreCase(followUpAction)) {
+				return buildRoute(ROUTE_SCENE_BURST_ANALYSIS, 1.0D,
+						"Intent recognition identified a re-analysis request");
+			}
 		}
 
 		String normalizedInput = normalize(userInput);
@@ -104,8 +119,12 @@ public class BurstAnalysisRouteNode implements NodeAction {
 					"Current query is a burst-analysis request that references a prior result entity");
 		}
 
-		if (containsAny(normalizedInput, BURST_KEYWORDS)) {
+		if (containsAny(normalizedInput, BURST_KEYWORDS) && !containsAny(normalizedInput, List.of("\u662f\u54ea2\u4e2a", "\u662f\u54ea\u4e9b"))) {
 			return buildRoute(ROUTE_SCENE_BURST_ANALYSIS, 0.98D, "Current query contains explicit burst-analysis keywords");
+		}
+
+		if (containsAny(normalizedInput, REANALYZE_KEYWORDS)) {
+			return buildRoute(ROUTE_SCENE_BURST_ANALYSIS, 0.98D, "Current query contains explicit re-analysis keywords");
 		}
 
 		if (containsAny(normalizedInput, GENERAL_DEVICE_WARNING_KEYWORDS)

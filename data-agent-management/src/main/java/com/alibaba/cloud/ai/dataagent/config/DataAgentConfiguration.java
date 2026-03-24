@@ -132,6 +132,8 @@ public class DataAgentConfiguration implements DisposableBean {
 			keyStrategyHashMap.put(DIRECT_ANSWER_OUTPUT, KeyStrategy.REPLACE);
 			keyStrategyHashMap.put(CLARIFICATION_NODE_OUTPUT, KeyStrategy.REPLACE);
 			keyStrategyHashMap.put(REFERENCE_RESOLUTION_NODE_OUTPUT, KeyStrategy.REPLACE);
+			// Result follow-up
+			keyStrategyHashMap.put(RESULT_FOLLOW_UP_OUTPUT, KeyStrategy.REPLACE);
 			// Burst-analysis route
 			keyStrategyHashMap.put(BURST_ANALYSIS_ROUTE_OUTPUT, KeyStrategy.REPLACE);
 			keyStrategyHashMap.put(ROUTE_SCENE, KeyStrategy.REPLACE);
@@ -203,6 +205,7 @@ public class DataAgentConfiguration implements DisposableBean {
 			.addNode(DIRECT_ANSWER_NODE, nodeBeanUtil.getNodeBeanAsync(DirectAnswerNode.class))
 			.addNode(CLARIFICATION_NODE, nodeBeanUtil.getNodeBeanAsync(ClarificationNode.class))
 			.addNode(REFERENCE_RESOLUTION_NODE, nodeBeanUtil.getNodeBeanAsync(ReferenceResolutionNode.class))
+			.addNode(RESULT_FOLLOW_UP_ANSWER_NODE, nodeBeanUtil.getNodeBeanAsync(ResultFollowUpAnswerNode.class))
 			.addNode(BURST_ANALYSIS_ROUTE_NODE, nodeBeanUtil.getNodeBeanAsync(BurstAnalysisRouteNode.class))
 			.addNode(BURST_ANALYSIS_NODE, nodeBeanUtil.getNodeBeanAsync(BurstAnalysisNode.class))
 			.addNode(EVIDENCE_RECALL_NODE, nodeBeanUtil.getNodeBeanAsync(EvidenceRecallNode.class))
@@ -228,7 +231,9 @@ public class DataAgentConfiguration implements DisposableBean {
 			.addConditionalEdges(CLARIFICATION_NODE, edge_async(new ClarificationDispatcher()),
 					Map.of(REFERENCE_RESOLUTION_NODE, REFERENCE_RESOLUTION_NODE, END, END))
 			.addConditionalEdges(REFERENCE_RESOLUTION_NODE, edge_async(new ReferenceResolutionDispatcher()),
-					Map.of(BURST_ANALYSIS_ROUTE_NODE, BURST_ANALYSIS_ROUTE_NODE, END, END))
+					Map.of(RESULT_FOLLOW_UP_ANSWER_NODE, RESULT_FOLLOW_UP_ANSWER_NODE, BURST_ANALYSIS_ROUTE_NODE,
+							BURST_ANALYSIS_ROUTE_NODE, END, END))
+			.addEdge(RESULT_FOLLOW_UP_ANSWER_NODE, END)
 			.addConditionalEdges(BURST_ANALYSIS_ROUTE_NODE, edge_async(new BurstAnalysisDispatcher()),
 					Map.of(BURST_ANALYSIS_NODE, BURST_ANALYSIS_NODE, EVIDENCE_RECALL_NODE, EVIDENCE_RECALL_NODE))
 			.addEdge(BURST_ANALYSIS_NODE, END)
