@@ -1,6 +1,6 @@
 ---
 name: dataagent-engineering
-description: Use when working on the DataAgent codebase in /Users/xiaoshi/Documents/code/AI/DataAgent, especially for feature development, workflow changes, schema/vector recovery, knowledge configuration, run-page debugging, or documenting engineering decisions. Start from the project code map and the agent6 tuning notes before changing Graph, prompts, startup recovery, or streaming behavior.
+description: Use when working on the DataAgent codebase in this repository, especially for feature development, workflow changes, schema/vector recovery, knowledge configuration, run-page debugging, or documenting engineering decisions. Start from the project code map and the agent6 tuning notes before changing Graph, prompts, startup recovery, or streaming behavior.
 ---
 
 # DataAgent Engineering
@@ -80,4 +80,5 @@ Keep one rule fixed unless the user explicitly wants a behavioral change:
 - Do not let `gid/layerId` leak into `MULTI_TURN_CONTEXT` or other prompt-facing summaries; burst parameter resolution must use structured session context, not text regex over old summaries.
 - For burst target resolution, preserve the invariant: filter by semantic attributes first, then apply ordinal within the filtered result set, and keep ambiguity clarification when multiple candidates remain.
 - New sessions must start from empty semantic reference context; never let a fresh session reuse another session's burst/query candidates.
-- For startup or restart requests, use [$start-data-agent](/Users/xiaoshi/Documents/code/AI/DataAgent/skills/start-data-agent/SKILL.md).
+- For startup or restart requests in a non-Windows environment, use [$start-data-agent](../start-data-agent/SKILL.md).
+- Do not use `$start-data-agent` as the default startup path on Windows.
