@@ -409,3 +409,29 @@
 2. `ReferenceResolutionDispatcher` 只有在 `resolvedReference=true` 时才进入 `ResultFollowUpAnswerNode`
 
 不要只依赖 LLM 的 `query_kind=result_followup` 单点判断来消费上一轮 burst 结果。
+## 13. “需关闭阀门”要区分查询语义与动作语义
+
+在 burst follow-up 里，`需关闭阀门` 不能直接等价于“调用 burst API”。长期规则固定为：
+
+- 查询语义：
+  - `需关闭的阀门有哪些`
+  - `查询需关闭 7 个阀门的信息`
+  - `这 2 个阀门分别是哪些`
+  - 这类只允许走上一轮结果追问或正常查询，不得自动生成 `closeValves`
+- 动作语义：
+  - `关闭这 2 个阀门`
+  - `关闭需关闭的阀门后重新分析`
+  - `让第1个阀门失效后重新分析`
+  - 这类才允许进入 `BurstAnalysisRouteNode -> BurstAnalysisNode`，并在 `BurstAnalysisServiceImpl` 中组装 `closeValves` 与 `parentAnalysisId`
+
+实现上要同时满足三层约束：
+
+1. `IntentRecognitionNode`
+   - 使用 `follow_up_action=list|explain|reanalyze|close_action`
+   - `close_action` 仅表示真正的关阀动作，不表示阀门信息查询
+2. `BurstAnalysisRouteNode`
+   - `list/explain` 不进入 burst API
+   - `reanalyze/close_action` 才进入 burst API
+3. `BurstAnalysisServiceImpl`
+   - 只有动作语义才从上一轮 burst 结果里解析阀门并合并到 `closeValves`
+   - 包含 `查询/信息/详情/有哪些` 等查询词的问句，即使出现“关闭/阀门”，也不得被当作关阀动作

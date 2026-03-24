@@ -94,6 +94,13 @@ public class BurstAnalysisServiceImpl implements BurstAnalysisService {
             "\u4E8C\u6B21\u5206\u6790", "\u4E8C\u6B21\u5173\u9600", "\u5931\u6548",
             "\u91CD\u65B0\u5173\u9600");
 
+    private static final List<String> CLOSE_ACTION_KEYWORDS = List.of("\u5173\u95ED", "\u5173\u6389",
+            "\u6267\u884C\u5173\u9600", "\u6A21\u62DF\u5173\u9600");
+
+    private static final List<String> VALVE_INFO_QUERY_KEYWORDS = List.of("\u67E5\u8BE2", "\u5217\u51FA", "\u663E\u793A",
+            "\u4FE1\u606F", "\u8BE6\u60C5", "\u8BE6\u7EC6", "\u6709\u54EA\u4E9B", "\u662F\u54EA", "\u54EA\u4E9B",
+            "\u54EA\u51E0\u4E2A", "\u54EA2\u4E2A");
+
     private static final List<String> QUERY_RESULT_REFERENCE_KEYWORDS = List.of("\u6570\u636E", "\u7ED3\u679C",
             "\u8BB0\u5F55", "\u7B2C\u4E00\u6761", "\u7B2C\u4E00\u4E2A", "\u7B2C\u4E00\u6839", "\u8FD9\u6761",
             "\u8FD9\u6839", "\u8FD9\u4E2A", "\u90A3\u6761", "\u90A3\u6839", "\u521A\u624D\u90A3\u6839");
@@ -242,7 +249,7 @@ public class BurstAnalysisServiceImpl implements BurstAnalysisService {
             }
         }
 
-        if (containsAny(normalized, VALVE_REFERENCE_KEYWORDS) && containsAny(normalized, REANALYZE_KEYWORDS)) {
+        if (containsAny(normalized, VALVE_REFERENCE_KEYWORDS) && isValveActionRequest(normalized)) {
             String closeValveId = resolveValveId(context, ordinal);
             if (StringUtils.isNotBlank(closeValveId) && StringUtils.isNotBlank(context.sourceLayerId())
                     && StringUtils.isNotBlank(context.sourceGid())) {
@@ -1359,6 +1366,7 @@ public class BurstAnalysisServiceImpl implements BurstAnalysisService {
                 pipeGidList.forEach(node -> pipeGids.add(node.asText("")));
             }
             List<ValveRef> valves = new ArrayList<>();
+            collectValves(valves, payload.path("valve_details").path("must_close"), "must_close");
             collectValveNames(valves, payload.path("must_close_valves"), "must_close");
             collectValves(valves, payload.path("valve_details").path("failed"), "failed");
             collectValves(valves, payload.path("valve_details").path("downstream"), "downstream");
@@ -1397,8 +1405,8 @@ public class BurstAnalysisServiceImpl implements BurstAnalysisService {
         if (valveArray == null || !valveArray.isArray()) {
             return;
         }
-        valveArray.forEach(node -> valves.add(new ValveRef(firstText(node, "id"), firstText(node, "layerId"),
-                firstText(node, "deviceName"), type)));
+        valveArray.forEach(node -> appendValveRef(valves, new ValveRef(firstText(node, "id"),
+                firstText(node, "layerId"), firstText(node, "deviceName"), type)));
     }
 
     private void collectValveNames(List<ValveRef> valves, JsonNode valveArray, String type) {
@@ -1413,8 +1421,29 @@ public class BurstAnalysisServiceImpl implements BurstAnalysisService {
             String[] parts = text.split("-");
             String name = parts.length > 0 ? parts[0] : "";
             String id = parts.length > 1 ? parts[parts.length - 1] : text;
-            valves.add(new ValveRef(id, "", name, type));
+            appendValveRef(valves, new ValveRef(id, "", name, type));
         });
+    }
+
+    private void appendValveRef(List<ValveRef> valves, ValveRef candidate) {
+        if (candidate == null || (StringUtils.isBlank(candidate.id()) && StringUtils.isBlank(candidate.deviceName()))) {
+            return;
+        }
+        boolean exists = valves.stream().anyMatch(existing -> sameValve(existing, candidate));
+        if (!exists) {
+            valves.add(candidate);
+        }
+    }
+
+    private boolean sameValve(ValveRef left, ValveRef right) {
+        if (left == null || right == null) {
+            return false;
+        }
+        if (StringUtils.isNotBlank(left.id()) && StringUtils.isNotBlank(right.id())) {
+            return StringUtils.equalsIgnoreCase(left.id(), right.id());
+        }
+        return StringUtils.isNotBlank(left.deviceName()) && StringUtils.isNotBlank(right.deviceName())
+                && StringUtils.equalsIgnoreCase(left.deviceName(), right.deviceName());
     }
 
     private Integer parseOrdinal(String text) {
@@ -1456,6 +1485,13 @@ public class BurstAnalysisServiceImpl implements BurstAnalysisService {
         List<ValveRef> valves = context.valves();
         if (valves == null || valves.isEmpty()) {
             return "";
+        }
+        List<ValveRef> actionableValves = valves.stream().filter(valve -> StringUtils.isNotBlank(valve.id())).toList();
+        if (!actionableValves.isEmpty()) {
+            if (ordinal == null || ordinal <= 0 || ordinal > actionableValves.size()) {
+                return actionableValves.get(0).id();
+            }
+            return actionableValves.get(ordinal - 1).id();
         }
         if (ordinal == null || ordinal <= 0 || ordinal > valves.size()) {
             return valves.get(0).id();
@@ -1590,6 +1626,13 @@ public class BurstAnalysisServiceImpl implements BurstAnalysisService {
 
     private boolean containsAny(String text, List<String> keywords) {
         return keywords.stream().anyMatch(text::contains);
+    }
+
+    private boolean isValveActionRequest(String normalizedQuery) {
+        if (StringUtils.isBlank(normalizedQuery) || containsAny(normalizedQuery, VALVE_INFO_QUERY_KEYWORDS)) {
+            return false;
+        }
+        return containsAny(normalizedQuery, REANALYZE_KEYWORDS) || containsAny(normalizedQuery, CLOSE_ACTION_KEYWORDS);
     }
 
     private String mergeCloseValves(String existing, String valveId) {

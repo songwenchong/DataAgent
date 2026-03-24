@@ -63,6 +63,9 @@ public class BurstAnalysisRouteNode implements NodeAction {
 	private static final List<String> REANALYZE_KEYWORDS = List.of("\u91cd\u65b0\u5206\u6790", "\u4e8c\u6b21\u5173\u9600",
 			"\u5931\u6548", "\u5931\u7075", "\u91cd\u65b0\u5173\u9600");
 
+	private static final List<String> CLOSE_ACTION_KEYWORDS = List.of("\u5173\u95ed", "\u5173\u6389", "\u5173\u9600",
+			"\u6a21\u62df\u5173\u9600");
+
 	private static final List<String> FOLLOW_UP_REFERENCE_KEYWORDS = List.of("\u8fd9\u4e2a", "\u90a3\u4e2a",
 			"\u4e0a\u8ff0", "\u4e0a\u9762", "\u5b83", "\u4ed6\u4eec", "\u7ee7\u7eed", "\u8fdb\u4e00\u6b65");
 
@@ -113,12 +116,13 @@ public class BurstAnalysisRouteNode implements NodeAction {
 				return buildRoute(ROUTE_SCENE_DEFAULT_GRAPH, 1.0D,
 						"Intent recognition identified a result follow-up explanation request");
 			}
-			if ("reanalyze".equalsIgnoreCase(followUpAction)) {
+			if ("reanalyze".equalsIgnoreCase(followUpAction) || "close_action".equalsIgnoreCase(followUpAction)) {
 				return buildRoute(ROUTE_SCENE_BURST_ANALYSIS, 1.0D,
-						"Intent recognition identified a re-analysis request");
+						"Intent recognition identified a burst-analysis action request");
 			}
 			if (("fresh_query".equalsIgnoreCase(queryKind) || "system_data".equalsIgnoreCase(contextScope))
-					&& !containsAny(normalizedInput, BURST_KEYWORDS) && !containsAny(normalizedInput, REANALYZE_KEYWORDS)) {
+					&& !containsAny(normalizedInput, BURST_KEYWORDS) && !containsAny(normalizedInput, REANALYZE_KEYWORDS)
+					&& !containsAny(normalizedInput, CLOSE_ACTION_KEYWORDS)) {
 				return buildRoute(ROUTE_SCENE_DEFAULT_GRAPH, 0.99D,
 						"Intent recognition identified a fresh system-data query");
 			}
@@ -137,6 +141,11 @@ public class BurstAnalysisRouteNode implements NodeAction {
 
 		if (containsAny(normalizedInput, REANALYZE_KEYWORDS)) {
 			return buildRoute(ROUTE_SCENE_BURST_ANALYSIS, 0.98D, "Current query contains explicit re-analysis keywords");
+		}
+
+		if (containsAny(normalizedInput, CLOSE_ACTION_KEYWORDS)) {
+			return buildRoute(ROUTE_SCENE_BURST_ANALYSIS, 0.96D,
+					"Current query contains explicit valve-action keywords");
 		}
 
 		if (containsAny(normalizedInput, GENERAL_DEVICE_WARNING_KEYWORDS)
@@ -183,7 +192,8 @@ public class BurstAnalysisRouteNode implements NodeAction {
 		}
 
 		return containsAny(normalizedInput, FOLLOW_UP_REFERENCE_KEYWORDS)
-				|| containsAny(normalizedInput, BURST_FOLLOW_UP_KEYWORDS);
+				|| containsAny(normalizedInput, BURST_FOLLOW_UP_KEYWORDS)
+				|| containsAny(normalizedInput, CLOSE_ACTION_KEYWORDS);
 	}
 
 	private BurstAnalysisRouteOutputDTO resolveRouteByLlm(String userInput, String multiTurn) {

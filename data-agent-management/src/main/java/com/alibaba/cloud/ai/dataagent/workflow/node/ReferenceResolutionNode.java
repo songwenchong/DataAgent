@@ -82,6 +82,9 @@ public class ReferenceResolutionNode implements NodeAction {
 	private static final List<String> EXPLICIT_FOLLOWUP_SCOPE_KEYWORDS = List.of("\u8FD9", "\u8FD9\u4E9B", "\u4E0A\u6B21",
 			"\u4E0A\u4E00\u8F6E", "\u521A\u624D", "\u9700\u5173\u95ED\u7684");
 
+	private static final List<String> ACTION_FOLLOW_UP_KEYWORDS = List.of("\u5173\u95ED", "\u5173\u6389", "\u5931\u6548",
+			"\u5931\u7075", "\u6a21\u62df", "\u91cd\u65b0\u5206\u6790", "\u91cd\u65b0\u5173\u9600");
+
 	private static final List<String> EXPLICIT_SCOPE_KEYWORDS = List.of("\u4F9B\u6C34\u7BA1\u7F51",
 			"\u6392\u6C34\u7BA1\u7F51", "\u6C61\u6C34\u7BA1\u7F51", "\u96E8\u6C34\u7BA1\u7F51",
 			"\u70ED\u529B\u7BA1\u7F51", "\u71C3\u6C14\u7BA1\u7F51", "\u6D88\u9632\u7BA1\u7F51",
@@ -233,7 +236,8 @@ public class ReferenceResolutionNode implements NodeAction {
 
 	private boolean hasReferenceMarker(String normalizedInput, String ordinal, IntentRecognitionOutputDTO intentOutput) {
 		return StringUtils.isNotBlank(ordinal) || containsAny(normalizedInput, PRONOUN_REFERENCE_KEYWORDS)
-				|| hasEnumerationReference(normalizedInput, intentOutput);
+				|| hasEnumerationReference(normalizedInput, intentOutput)
+				|| hasActionReference(normalizedInput, intentOutput);
 	}
 
 	private boolean canResolveFromBurstContext(String normalizedInput, BurstAnalysisContext burstAnalysisContext) {
@@ -371,6 +375,21 @@ public class ReferenceResolutionNode implements NodeAction {
 			return false;
 		}
 		return containsAny(normalizedInput, EXPLICIT_FOLLOWUP_SCOPE_KEYWORDS);
+	}
+
+	private boolean hasActionReference(String normalizedInput, IntentRecognitionOutputDTO intentOutput) {
+		if (!containsAny(normalizedInput, ACTION_FOLLOW_UP_KEYWORDS)) {
+			return false;
+		}
+		if (intentOutput == null || intentOutput.getEntities() == null) {
+			return false;
+		}
+		String targetEntity = (String) intentOutput.getEntities().get("target_entity");
+		if (StringUtils.isBlank(targetEntity) || "unknown".equalsIgnoreCase(targetEntity)) {
+			return false;
+		}
+		return containsAny(normalizedInput, EXPLICIT_FOLLOWUP_SCOPE_KEYWORDS)
+				|| containsAny(normalizedInput, PRONOUN_REFERENCE_KEYWORDS);
 	}
 
 	private String detectOrdinal(String userInput) {

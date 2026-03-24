@@ -18,15 +18,17 @@ Classification rules:
 - For this intent, fill `entities` as much as possible.
 - **Follow-up Semantic Fields in `entities`**:
   - `query_kind`: `fresh_query` (new topic) | `result_followup` (asking about previous results)
-  - `follow_up_action`: `list` (show details/list) | `explain` (explain/summarize) | `reanalyze` (rerun analysis with changes)
+  - `follow_up_action`: `list` (show details/list) | `explain` (explain/summarize) | `reanalyze` (rerun analysis with changes) | `close_action` (close valves / execute valve action)
   - `target_entity`: `pipe` | `valve` | `work_order` | `device` | `unknown`
   - `context_scope`: `previous_result` (general) | `previous_burst_result` (specifically from burst analysis) | `system_data`
 - Only output `query_kind=result_followup` when the user is clearly referring to the previous result, for example using references like "这条", "刚才", "上一轮", "第一个", or asking which items from the previous result.
 - If the user is launching a new filtered query, even when words like "阀门", "需关闭", or a quantity appear, keep it as a fresh query with `query_kind=fresh_query` and `context_scope=system_data`.
 - **Few-shot examples**:
-  - `需关闭 2 个阀门，是哪2个` -> `query_kind: result_followup, follow_up_action: list, target_entity: valve, context_scope: previous_burst_result`
+  - `哪 2 个阀门需关闭` -> `query_kind: result_followup, follow_up_action: list, target_entity: valve, context_scope: previous_burst_result`
   - `查询需关闭 7 个阀门的信息` -> `query_kind: fresh_query, follow_up_action: list, target_entity: valve, context_scope: system_data`
   - `查询关闭状态的阀门` -> `query_kind: fresh_query, follow_up_action: list, target_entity: valve, context_scope: system_data`
+  - `关闭这 2 个阀门` -> `query_kind: result_followup, follow_up_action: close_action, target_entity: valve, context_scope: previous_burst_result`
+  - `关闭需关闭的阀门后重新分析` -> `query_kind: result_followup, follow_up_action: reanalyze, target_entity: valve, context_scope: previous_burst_result`
   - `让第1个阀门失效后重新分析` -> `query_kind: result_followup, follow_up_action: reanalyze, target_entity: valve, context_scope: previous_burst_result`
   - `对第二条数据进行爆管分析` -> `query_kind: result_followup, follow_up_action: reanalyze, target_entity: pipe, context_scope: previous_result`
   - `刚才查到的工单有哪些` -> `query_kind: result_followup, follow_up_action: list, target_entity: work_order, context_scope: previous_result`
