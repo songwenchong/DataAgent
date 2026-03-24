@@ -1,1 +1,0 @@
-采用独立的 PowerShell 保存脚本最适合当前 Windows 环境，能够稳定生成 UTF-8 Markdown 文件。
