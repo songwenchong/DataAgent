@@ -21,6 +21,7 @@ import com.alibaba.cloud.ai.dataagent.service.graph.Context.BurstAnalysisContext
 import com.alibaba.cloud.ai.dataagent.service.graph.Context.ReferenceResolutionContextManager;
 import com.alibaba.cloud.ai.dataagent.service.graph.Context.ReferenceResolutionContextManager.ReferenceContext;
 import com.alibaba.cloud.ai.dataagent.service.graph.Context.SessionSemanticReferenceContextService;
+import com.alibaba.cloud.ai.dataagent.service.graph.Context.SessionSemanticReferenceContextService.SectionSemanticReferenceContext;
 import com.alibaba.cloud.ai.dataagent.service.graph.Context.SessionSemanticReferenceContextService.SessionSemanticReferenceContext;
 import com.alibaba.cloud.ai.dataagent.util.ChatResponseUtil;
 import com.alibaba.cloud.ai.dataagent.util.FluxUtil;
@@ -231,21 +232,24 @@ public class ReferenceResolutionNode implements NodeAction {
 
 	private boolean canResolveFromSessionContext(String normalizedInput,
 			SessionSemanticReferenceContext sessionSemanticContext) {
-		if (sessionSemanticContext == null || sessionSemanticContext.referenceTargets() == null
-				|| sessionSemanticContext.referenceTargets().isEmpty()) {
+		if (sessionSemanticContext == null || !hasSessionTargets(sessionSemanticContext)) {
 			return false;
 		}
 		return containsAny(normalizedInput, PIPE_ENTITY_KEYWORDS)
+				|| containsAny(normalizedInput, VALVE_ENTITY_KEYWORDS)
 				|| containsAny(normalizedInput, PRONOUN_REFERENCE_KEYWORDS)
 				|| StringUtils.contains(normalizedInput, "\u7b2c\u4e00\u6839")
+				|| StringUtils.contains(normalizedInput, "\u7b2c\u4e00\u4e2a")
 				|| containsAny(normalizedInput, PIPE_ATTRIBUTE_KEYWORDS);
 	}
 
 	private boolean prefersSessionSemanticContext(String normalizedInput, String entityType) {
-		if ("pipe".equalsIgnoreCase(StringUtils.defaultString(entityType))) {
+		if ("pipe".equalsIgnoreCase(StringUtils.defaultString(entityType))
+				|| "valve".equalsIgnoreCase(StringUtils.defaultString(entityType))) {
 			return true;
 		}
 		return containsAny(normalizedInput, PIPE_ENTITY_KEYWORDS)
+				|| containsAny(normalizedInput, VALVE_ENTITY_KEYWORDS)
 				|| normalizedInput.contains("\u7206\u7BA1")
 				|| containsAny(normalizedInput, PIPE_ATTRIBUTE_KEYWORDS);
 	}
@@ -262,9 +266,11 @@ public class ReferenceResolutionNode implements NodeAction {
 	}
 
 	private String buildSessionReferenceSummary(SessionSemanticReferenceContext sessionSemanticContext, Integer ordinal) {
-		int targetCount = sessionSemanticContext.referenceTargets() == null ? 0
-				: sessionSemanticContext.referenceTargets().size();
-		String entityLabel = toEntityLabel(sessionSemanticContext.entityType());
+		SectionSemanticReferenceContext section = sessionSemanticContext
+			.resolveSection(StringUtils.defaultString(sessionSemanticContext.entityType()));
+		int targetCount = section != null && section.referenceTargets() != null ? section.referenceTargets().size()
+				: (sessionSemanticContext.referenceTargets() == null ? 0 : sessionSemanticContext.referenceTargets().size());
+		String entityLabel = toEntityLabel(section != null ? section.entityType() : sessionSemanticContext.entityType());
 		if (targetCount <= 0) {
 			return "已锁定上一轮" + entityLabel + "结果，可继续按顺序或属性追问目标";
 		}
@@ -273,6 +279,17 @@ public class ReferenceResolutionNode implements NodeAction {
 					+ " 条或符合条件的目标继续追问";
 		}
 		return "已锁定上一轮" + entityLabel + "结果，共 " + targetCount + " 条，可继续按顺序或属性追问目标";
+	}
+
+	private boolean hasSessionTargets(SessionSemanticReferenceContext sessionSemanticContext) {
+		if (sessionSemanticContext == null) {
+			return false;
+		}
+		if (sessionSemanticContext.referenceTargets() != null && !sessionSemanticContext.referenceTargets().isEmpty()) {
+			return true;
+		}
+		return sessionSemanticContext.sections() != null && sessionSemanticContext.sections().stream().anyMatch(
+				section -> section != null && section.referenceTargets() != null && !section.referenceTargets().isEmpty());
 	}
 
 	private String toEntityLabel(String entityType) {

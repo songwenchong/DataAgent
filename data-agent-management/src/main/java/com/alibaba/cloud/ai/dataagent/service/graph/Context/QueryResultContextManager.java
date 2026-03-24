@@ -29,7 +29,7 @@ public class QueryResultContextManager {
 	private final Map<String, QueryResultContext> latestQueryResultContext = new ConcurrentHashMap<>();
 
 	public void save(String threadId, QueryResultContext context) {
-		if (StringUtils.isBlank(threadId) || context == null || context.rows() == null || context.rows().isEmpty()) {
+		if (StringUtils.isBlank(threadId) || context == null || !hasUsableData(context)) {
 			return;
 		}
 		latestQueryResultContext.put(threadId, context);
@@ -53,6 +53,19 @@ public class QueryResultContextManager {
 		log.info("[CTX_TRACE][QUERY_RESULT][CLEAR][threadId={}]", threadId);
 	}
 
+	private boolean hasUsableData(QueryResultContext context) {
+		if (context.rows() != null && !context.rows().isEmpty()) {
+			return true;
+		}
+		if (context.referenceTargets() != null && !context.referenceTargets().isEmpty()) {
+			return true;
+		}
+		return context.sections() != null
+				&& context.sections().stream().anyMatch(section -> section != null
+						&& ((section.rows() != null && !section.rows().isEmpty())
+								|| (section.referenceTargets() != null && !section.referenceTargets().isEmpty())));
+	}
+
 	private String summarizeContext(QueryResultContext context) {
 		if (context == null) {
 			return "context=null";
@@ -67,15 +80,63 @@ public class QueryResultContextManager {
 				+ (rows == null ? 0 : rows.size()) + ", sampleRows="
 				+ StringUtils.abbreviate(String.valueOf(sampleRows), 1200) + ", referenceTargetCount="
 				+ (referenceTargets == null ? 0 : referenceTargets.size()) + ", sampleReferenceTargets="
-				+ StringUtils.abbreviate(String.valueOf(sampleTargets), 1200);
+				+ StringUtils.abbreviate(String.valueOf(sampleTargets), 1200) + ", sceneType="
+				+ StringUtils.defaultString(context.sceneType()) + ", activeSectionKey="
+				+ StringUtils.defaultString(context.activeSectionKey()) + ", sections="
+				+ StringUtils.abbreviate(String.valueOf(context.sections()), 1200);
 	}
 
 	public record QueryResultContext(String entityType, String tableName, List<String> columns,
-			List<Map<String, String>> rows, List<ReferenceTarget> referenceTargets) {
+			List<Map<String, String>> rows, List<ReferenceTarget> referenceTargets, String sceneType, String summary,
+			String activeSectionKey, List<SectionContext> sections) {
+
+		public QueryResultContext(String entityType, String tableName, List<String> columns, List<Map<String, String>> rows,
+				List<ReferenceTarget> referenceTargets) {
+			this(entityType, tableName, columns, rows, referenceTargets, "", "", "", List.of());
+		}
+
+		public SectionContext activeSection() {
+			if (sections == null || sections.isEmpty()) {
+				return null;
+			}
+			if (StringUtils.isNotBlank(activeSectionKey)) {
+				for (SectionContext section : sections) {
+					if (section != null && StringUtils.equalsIgnoreCase(activeSectionKey, section.key())) {
+						return section;
+					}
+				}
+			}
+			return sections.get(0);
+		}
+
+		public SectionContext resolveSection(String preferredEntityType) {
+			if (sections == null || sections.isEmpty()) {
+				return null;
+			}
+			if (StringUtils.isNotBlank(preferredEntityType)) {
+				for (SectionContext section : sections) {
+					if (section != null && StringUtils.equalsIgnoreCase(preferredEntityType, section.entityType())
+							&& section.referenceTargets() != null && !section.referenceTargets().isEmpty()) {
+						return section;
+					}
+				}
+				for (SectionContext section : sections) {
+					if (section != null && StringUtils.equalsIgnoreCase(preferredEntityType, section.entityType())) {
+						return section;
+					}
+				}
+			}
+			return activeSection();
+		}
 	}
 
 	public record ReferenceTarget(int rowOrdinal, String entityType, String gid, String layerId, String displayName,
 			String networkName, Map<String, String> attributes) {
+	}
+
+	public record SectionContext(String key, String title, String entityType, List<String> columns,
+			List<Map<String, String>> rows, ReferenceTarget referencePreview, List<ReferenceTarget> referenceTargets,
+			String summary) {
 	}
 
 }

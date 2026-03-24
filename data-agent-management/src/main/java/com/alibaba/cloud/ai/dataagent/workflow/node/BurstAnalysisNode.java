@@ -15,11 +15,13 @@
  */
 package com.alibaba.cloud.ai.dataagent.workflow.node;
 
+import com.alibaba.cloud.ai.dataagent.bo.schema.ResultBO;
 import com.alibaba.cloud.ai.dataagent.dto.burst.BurstAnalysisResponseDTO;
 import com.alibaba.cloud.ai.dataagent.enums.TextType;
 import com.alibaba.cloud.ai.dataagent.service.burst.BurstAnalysisService;
 import com.alibaba.cloud.ai.dataagent.util.ChatResponseUtil;
 import com.alibaba.cloud.ai.dataagent.util.FluxUtil;
+import com.alibaba.cloud.ai.dataagent.util.JsonUtil;
 import com.alibaba.cloud.ai.dataagent.util.StateUtil;
 import com.alibaba.cloud.ai.graph.GraphResponse;
 import com.alibaba.cloud.ai.graph.OverAllState;
@@ -63,17 +65,48 @@ public class BurstAnalysisNode implements NodeAction {
 		BurstAnalysisResponseDTO response = burstAnalysisService.analyze(originalUserInput, multiTurnContext, routeReason,
 				agentId, threadId, sessionId);
 		String message = buildMessage(response);
+		ResultBO structuredResult = response.getStructuredResult();
 
 		log.info("Burst-analysis branch activated for threadId: {}", threadId);
-		Flux<ChatResponse> sourceFlux = Flux.just(ChatResponseUtil.createPureResponse(message));
+		Flux<ChatResponse> displayFlux = buildDisplayFlux(response, structuredResult, message);
 		Flux<GraphResponse<StreamingOutput>> generator = FluxUtil.createStreamingGenerator(this.getClass(), state,
-				sourceFlux,
-				Flux.just(ChatResponseUtil.createResponse("\u6B63\u5728\u751F\u6210\u7206\u7BA1\u5206\u6790\u7ED3\u679C..."),
-						ChatResponseUtil.createPureResponse(TextType.MARK_DOWN.getStartSign())),
-				Flux.just(ChatResponseUtil.createPureResponse(TextType.MARK_DOWN.getEndSign()),
-						ChatResponseUtil.createResponse("\u7206\u7BA1\u5206\u6790\u7ED3\u679C\u5DF2\u751F\u6210")),
+				displayFlux,
+				Flux.just(ChatResponseUtil.createResponse("\u6B63\u5728\u751F\u6210\u7206\u7BA1\u5206\u6790\u7ED3\u679C...")),
+				Flux.just(ChatResponseUtil.createResponse("\u7206\u7BA1\u5206\u6790\u7ED3\u679C\u5DF2\u751F\u6210")),
 				value -> Map.of(BURST_ANALYSIS_API_OUTPUT, response));
 		return Map.of(BURST_ANALYSIS_API_OUTPUT, generator);
+	}
+
+	private Flux<ChatResponse> buildDisplayFlux(BurstAnalysisResponseDTO response, ResultBO structuredResult,
+			String message) {
+		Flux<ChatResponse> resultSetFlux = Flux.empty();
+		if (structuredResult != null) {
+			try {
+				String payload = JsonUtil.getObjectMapper().writeValueAsString(structuredResult);
+				resultSetFlux = Flux.just(ChatResponseUtil.createPureResponse(TextType.RESULT_SET.getStartSign()),
+						ChatResponseUtil.createPureResponse(payload),
+						ChatResponseUtil.createPureResponse(TextType.RESULT_SET.getEndSign()));
+			}
+			catch (Exception ex) {
+				log.warn("Failed to serialize burst structured result", ex);
+			}
+		}
+		if (!shouldDisplayMarkdown(response, structuredResult, message)) {
+			return resultSetFlux;
+		}
+		return resultSetFlux.concatWith(Flux.just(ChatResponseUtil.createPureResponse(TextType.MARK_DOWN.getStartSign()),
+				ChatResponseUtil.createPureResponse(message),
+				ChatResponseUtil.createPureResponse(TextType.MARK_DOWN.getEndSign())));
+	}
+
+	private boolean shouldDisplayMarkdown(BurstAnalysisResponseDTO response, ResultBO structuredResult, String message) {
+		if (message == null || message.isBlank()) {
+			return false;
+		}
+		if (structuredResult == null) {
+			return true;
+		}
+		return !response.isSuccess() || isClarificationResponse(response);
 	}
 
 	private String buildMessage(BurstAnalysisResponseDTO response) {
@@ -113,10 +146,10 @@ public class BurstAnalysisNode implements NodeAction {
 		appendLine(requestInfo, "closeValves", response.getCloseValves());
 		appendLine(requestInfo, "parentAnalysisId", response.getParentAnalysisId());
 		appendLine(requestInfo, "requestUri", response.getRequestUri());
-		if (requestInfo.length() > 0) {
-			markdown.append("### 本次请求参数\n");
-			markdown.append(requestInfo).append("\n");
-		}
+//		if (requestInfo.length() > 0) {
+//			markdown.append("### 本次请求参数\n");
+//			markdown.append(requestInfo).append("\n");
+//		}
 
 		StringBuilder overview = new StringBuilder();
 		appendLine(overview, "\u6240\u5C5E\u7BA1\u7F51", response.getNetworkName());
@@ -156,12 +189,12 @@ public class BurstAnalysisNode implements NodeAction {
 				markdown.append("- ").append(highlight).append("\n");
 			}
 		}
-		if (response.getRawResponse() != null && !response.getRawResponse().isBlank()) {
-			markdown.append("\n### 原始 JSON 响应\n");
-			markdown.append("```json\n");
-			markdown.append(response.getRawResponse()).append("\n");
-			markdown.append("```\n");
-		}
+//		if (response.getRawResponse() != null && !response.getRawResponse().isBlank()) {
+//			markdown.append("\n### 原始 JSON 响应\n");
+//			markdown.append("```json\n");
+//			markdown.append(response.getRawResponse()).append("\n");
+//			markdown.append("```\n");
+//		}
 		markdown.append("\n### \u53EF\u7EE7\u7EED\u8FFD\u95EE\n");
 		markdown.append("- \u67E5\u770B\u5FC5\u5173\u9600\u95E8\u7684\u8BE6\u7EC6\u4FE1\u606F\n");
 		markdown.append("- \u8BA9\u7CFB\u7EDF\u5BF9\u7B2C\u4E00\u6761\u53D7\u5F71\u54CD\u7BA1\u7EBF\u7EE7\u7EED\u505A\u7206\u7BA1\u5206\u6790\n");

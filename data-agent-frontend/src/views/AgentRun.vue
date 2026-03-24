@@ -165,7 +165,7 @@
                     v-else-if="nodeBlock.length > 0 && nodeBlock[0].textType === 'RESULT_SET'"
                     class="agent-response-block"
                   >
-                    <div class="agent-response-title">
+                    <div v-if="shouldShowResultNodeTitle(nodeBlock)" class="agent-response-title">
                       {{ nodeBlock[0].nodeName }}
                     </div>
                     <div class="agent-response-content">
@@ -392,6 +392,7 @@
   import {
     type ReferencePreviewData,
     type ResultData,
+    type ResultSectionData,
     type ResultSetData,
     type ResultSetDisplayConfig,
   } from '@/services/resultSet';
@@ -669,6 +670,23 @@
           const saveNodeMessage = (node: GraphNodeResponse[]): Promise<void> => {
             if (!node || !node.length) return Promise.resolve();
             const metadata = buildNodeMetadata(node, sessionState.lastRequest?.query);
+            if (node.length > 0 && node[0].textType === TextType.RESULT_SET) {
+              try {
+                JSON.parse(node[0].text);
+                const aiMessage: ChatMessage = {
+                  sessionId,
+                  role: 'assistant',
+                  content: node[0].text,
+                  messageType: 'result-set',
+                  metadata,
+                };
+                return ChatService.saveMessage(sessionId, aiMessage).catch(error => {
+                  console.error('淇濆瓨AI娑堟伅澶辫触:', error);
+                });
+              } catch (error) {
+                console.error('瑙ｆ瀽缁撴灉闆咼SON澶辫触:', error);
+              }
+            }
 
             // 特殊处理RESULT_SET节点
             if (node.length > 0 && node[0].textType === TextType.RESULT_SET) {
@@ -1070,6 +1088,65 @@
         `;
       };
 
+      const getResultSections = (resultData: ResultData | undefined): ResultSectionData[] => {
+        return Array.isArray(resultData?.sections) ? resultData.sections.filter(Boolean) : [];
+      };
+
+      const getPrimaryReferencePreview = (
+        resultData: ResultData | undefined,
+      ): ReferencePreviewData | undefined => {
+        if (!resultData) {
+          return undefined;
+        }
+        if (resultData.referencePreview?.gid) {
+          return resultData.referencePreview;
+        }
+        const sections = getResultSections(resultData);
+        const activeSection = sections.find(section => section.key === resultData.activeSectionKey);
+        if (activeSection?.referencePreview?.gid) {
+          return activeSection.referencePreview;
+        }
+        for (const section of sections) {
+          if (section.referencePreview?.gid) {
+            return section.referencePreview;
+          }
+          if (section.referenceTargets?.length) {
+            return section.referenceTargets[0];
+          }
+        }
+        return undefined;
+      };
+
+      const getAllReferenceTargets = (resultData: ResultData | undefined): ReferencePreviewData[] | undefined => {
+        if (!resultData) {
+          return undefined;
+        }
+        if (resultData.referenceTargets?.length) {
+          return resultData.referenceTargets;
+        }
+        const sections = getResultSections(resultData);
+        if (!sections.length) {
+          return undefined;
+        }
+        const targets = sections.flatMap(section => section.referenceTargets || []);
+        return targets.length ? targets : undefined;
+      };
+
+      const getMetadataSections = (resultData: ResultData | undefined) => {
+        const sections = getResultSections(resultData);
+        if (!sections.length) {
+          return undefined;
+        }
+        return sections.map(section => ({
+          key: section.key || '',
+          title: section.title || '',
+          entityType: section.entityType || '',
+          summary: section.summary || '',
+          referencePreview: section.referencePreview,
+          referenceTargets: section.referenceTargets,
+        }));
+      };
+
       const extractReferencePreviewFromNode = (
         node: GraphNodeResponse[],
       ): ReferencePreviewData | undefined => {
@@ -1082,8 +1159,9 @@
           }
           try {
             const resultData: ResultData = JSON.parse(item.text);
-            if (resultData.referencePreview?.gid) {
-              return resultData.referencePreview;
+            const preview = getPrimaryReferencePreview(resultData);
+            if (preview?.gid) {
+              return preview;
             }
           } catch (error) {
             console.warn('提取referencePreview失败:', error);
@@ -1104,10 +1182,20 @@
           }
           try {
             const resultData: ResultData = JSON.parse(item.text);
-            if (resultData.referenceTargets?.length) {
-              referenceTargets = resultData.referenceTargets;
+            referenceTargets = getAllReferenceTargets(resultData);
+            const sections = getMetadataSections(resultData);
+            if (sections?.length || referenceTargets?.length) {
+              return JSON.stringify({
+                nodeName: node[0]?.nodeName || '',
+                threadId: node[0]?.threadId || '',
+                querySummary: querySummary || '',
+                sceneType: resultData.sceneType || '',
+                activeSectionKey: resultData.activeSectionKey || '',
+                referencePreview,
+                referenceTargets,
+                sections,
+              });
             }
-            break;
           } catch (error) {
             console.warn('提取referenceTargets失败:', error);
           }
@@ -1119,9 +1207,24 @@
           nodeName: node[0]?.nodeName || '',
           threadId: node[0]?.threadId || '',
           querySummary: querySummary || '',
+          sceneType: '',
+          activeSectionKey: '',
           referencePreview,
           referenceTargets,
         });
+      };
+
+      const shouldShowResultNodeTitle = (nodeBlock: GraphNodeResponse[]): boolean => {
+        if (!nodeBlock.length || nodeBlock[0].textType !== TextType.RESULT_SET || !nodeBlock[0].text) {
+          return true;
+        }
+        try {
+          const resultData: ResultData = JSON.parse(nodeBlock[0].text);
+          return resultData.sceneType !== 'burst_analysis';
+        } catch (error) {
+          console.warn('解析结果集场景失败:', error);
+          return true;
+        }
       };
 
       // 生成节点容器的HTML代码
@@ -1200,7 +1303,7 @@
               // 解析JSON字符串
               const resultData: ResultData = JSON.parse(node[idx].text);
               const resultSetData = resultData.resultSet;
-              content += buildReferencePreviewHtml(resultData.referencePreview);
+              content += buildReferencePreviewHtml(getPrimaryReferencePreview(resultData));
 
               // 检查是否有错误信息
               if (resultSetData.errorMsg) {

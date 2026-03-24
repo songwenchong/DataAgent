@@ -14,7 +14,21 @@
  * limitations under the License.
  */
 export interface ResultData {
+  sceneType?: string;
+  summary?: string;
+  activeSectionKey?: string;
+  sections?: ResultSectionData[];
   displayStyle?: ResultDisplayStyleBO;
+  resultSet: ResultSetData;
+  referencePreview?: ReferencePreviewData;
+  referenceTargets?: ReferencePreviewData[];
+}
+
+export interface ResultSectionData {
+  key?: string;
+  title?: string;
+  entityType?: string;
+  summary?: string;
   resultSet: ResultSetData;
   referencePreview?: ReferencePreviewData;
   referenceTargets?: ReferencePreviewData[];

@@ -41,8 +41,7 @@ public class SessionSemanticReferenceContextService {
 	private final ChatMessageService chatMessageService;
 
 	public void save(String sessionId, SessionSemanticReferenceContext context) {
-		if (StringUtils.isBlank(sessionId) || context == null || context.referenceTargets() == null
-				|| context.referenceTargets().isEmpty()) {
+		if (StringUtils.isBlank(sessionId) || context == null || !hasTargets(context)) {
 			return;
 		}
 		latestContextBySession.put(sessionId, context);
@@ -100,8 +99,14 @@ public class SessionSemanticReferenceContextService {
 		try {
 			JsonNode root = JsonUtil.getObjectMapper().readTree(message.getMetadata());
 			List<ReferenceTarget> targets = parseReferenceTargets(root);
-			if (targets.isEmpty()) {
+			List<SectionSemanticReferenceContext> sections = parseSections(root);
+			if (targets.isEmpty() && sections.isEmpty()) {
 				return null;
+			}
+			SessionSemanticReferenceContext sectionContext = buildContextFromSections(sections, "history_metadata",
+					text(root, "querySummary"), text(root, "sceneType"), text(root, "activeSectionKey"));
+			if (sectionContext != null) {
+				return sectionContext;
 			}
 			return new SessionSemanticReferenceContext(normalizeEntityType(targets.get(0).entityType()), targets,
 					"history_metadata", text(root, "querySummary"));
@@ -119,6 +124,12 @@ public class SessionSemanticReferenceContextService {
 		}
 		try {
 			JsonNode root = JsonUtil.getObjectMapper().readTree(message.getContent());
+			List<SectionSemanticReferenceContext> sections = parseSections(root);
+			SessionSemanticReferenceContext sectionContext = buildContextFromSections(sections, "history_result_set",
+					text(root, "summary"), text(root, "sceneType"), text(root, "activeSectionKey"));
+			if (sectionContext != null) {
+				return sectionContext;
+			}
 			List<ReferenceTarget> targets = parseReferenceTargets(root);
 			if (targets.isEmpty()) {
 				return null;
@@ -173,6 +184,92 @@ public class SessionSemanticReferenceContextService {
 		return previewTarget == null ? List.of() : List.of(previewTarget);
 	}
 
+	private List<SectionSemanticReferenceContext> parseSections(JsonNode root) {
+		if (root == null || root.isMissingNode() || root.isNull()) {
+			return List.of();
+		}
+		JsonNode sectionArray = root.path("sections");
+		if (!sectionArray.isArray()) {
+			return List.of();
+		}
+		List<SectionSemanticReferenceContext> sections = new java.util.ArrayList<>();
+		sectionArray.forEach(sectionNode -> {
+			List<ReferenceTarget> targets = parseReferenceTargets(sectionNode);
+			ReferenceTarget preview = parseReferenceTarget(sectionNode.path("referencePreview"));
+			if (preview == null && !targets.isEmpty()) {
+				preview = targets.get(0);
+			}
+			JsonNode resultSet = sectionNode.path("resultSet");
+			List<Map<String, String>> rows = parseRows(resultSet.path("data"));
+			List<String> columns = parseColumns(resultSet.path("column"));
+			sections.add(new SectionSemanticReferenceContext(text(sectionNode, "key"), text(sectionNode, "title"),
+					StringUtils.trimToEmpty(text(sectionNode, "entityType")), targets, preview, rows, columns,
+					text(sectionNode, "summary")));
+		});
+		return sections.stream().filter(section -> section.preview() != null
+				|| (section.referenceTargets() != null && !section.referenceTargets().isEmpty())
+				|| (section.rows() != null && !section.rows().isEmpty())).toList();
+	}
+
+	private SessionSemanticReferenceContext buildContextFromSections(List<SectionSemanticReferenceContext> sections,
+			String source, String querySummary, String sceneType, String activeSectionKey) {
+		if (sections == null || sections.isEmpty()) {
+			return null;
+		}
+		SectionSemanticReferenceContext primarySection = resolvePrimarySection(sections, activeSectionKey);
+		if (primarySection == null) {
+			return null;
+		}
+		return new SessionSemanticReferenceContext(primarySection.entityType(),
+				primarySection.referenceTargets() == null ? List.of() : primarySection.referenceTargets(), source,
+				querySummary, StringUtils.defaultString(sceneType), StringUtils.defaultString(activeSectionKey), sections);
+	}
+
+	private SectionSemanticReferenceContext resolvePrimarySection(List<SectionSemanticReferenceContext> sections,
+			String activeSectionKey) {
+		if (sections == null || sections.isEmpty()) {
+			return null;
+		}
+		if (StringUtils.isNotBlank(activeSectionKey)) {
+			for (SectionSemanticReferenceContext section : sections) {
+				if (section != null && StringUtils.equalsIgnoreCase(activeSectionKey, section.key())) {
+					return section;
+				}
+			}
+		}
+		for (SectionSemanticReferenceContext section : sections) {
+			if (section != null && section.referenceTargets() != null && !section.referenceTargets().isEmpty()) {
+				return section;
+			}
+		}
+		return sections.get(0);
+	}
+
+	private List<Map<String, String>> parseRows(JsonNode dataNode) {
+		if (dataNode == null || !dataNode.isArray()) {
+			return List.of();
+		}
+		List<Map<String, String>> rows = new java.util.ArrayList<>();
+		dataNode.forEach(rowNode -> {
+			if (!rowNode.isObject()) {
+				return;
+			}
+			Map<String, String> row = new HashMap<>();
+			rowNode.fields().forEachRemaining(entry -> row.put(entry.getKey(), entry.getValue().asText("")));
+			rows.add(row);
+		});
+		return rows;
+	}
+
+	private List<String> parseColumns(JsonNode columnNode) {
+		if (columnNode == null || !columnNode.isArray()) {
+			return List.of();
+		}
+		List<String> columns = new java.util.ArrayList<>();
+		columnNode.forEach(node -> columns.add(node.asText("")));
+		return columns;
+	}
+
 	private String normalizeEntityType(String entityType) {
 		return StringUtils.isBlank(entityType) ? PIPE_ENTITY_TYPE : entityType.trim();
 	}
@@ -199,11 +296,59 @@ public class SessionSemanticReferenceContextService {
 		return "entityType=" + StringUtils.defaultString(context.entityType()) + ", source="
 				+ StringUtils.defaultString(context.source()) + ", querySummary="
 				+ StringUtils.abbreviate(StringUtils.defaultString(context.querySummary()), 300) + ", targets="
-				+ StringUtils.abbreviate(String.valueOf(context.referenceTargets()), 1200);
+				+ StringUtils.abbreviate(String.valueOf(context.referenceTargets()), 1200) + ", sceneType="
+				+ StringUtils.defaultString(context.sceneType()) + ", activeSectionKey="
+				+ StringUtils.defaultString(context.activeSectionKey()) + ", sections="
+				+ StringUtils.abbreviate(String.valueOf(context.sections()), 1200);
 	}
 
 	public record SessionSemanticReferenceContext(String entityType, List<ReferenceTarget> referenceTargets,
-			String source, String querySummary) {
+			String source, String querySummary, String sceneType, String activeSectionKey,
+			List<SectionSemanticReferenceContext> sections) {
+
+		public SessionSemanticReferenceContext(String entityType, List<ReferenceTarget> referenceTargets, String source,
+				String querySummary) {
+			this(entityType, referenceTargets, source, querySummary, "", "", List.of());
+		}
+
+		public SectionSemanticReferenceContext activeSection() {
+			if (sections == null || sections.isEmpty()) {
+				return null;
+			}
+			if (StringUtils.isNotBlank(activeSectionKey)) {
+				for (SectionSemanticReferenceContext section : sections) {
+					if (section != null && StringUtils.equalsIgnoreCase(activeSectionKey, section.key())) {
+						return section;
+					}
+				}
+			}
+			return sections.get(0);
+		}
+
+		public SectionSemanticReferenceContext resolveSection(String preferredEntityType) {
+			if (sections == null || sections.isEmpty()) {
+				return null;
+			}
+			if (StringUtils.isNotBlank(preferredEntityType)) {
+				for (SectionSemanticReferenceContext section : sections) {
+					if (section != null && StringUtils.equalsIgnoreCase(preferredEntityType, section.entityType())
+							&& section.referenceTargets() != null && !section.referenceTargets().isEmpty()) {
+						return section;
+					}
+				}
+				for (SectionSemanticReferenceContext section : sections) {
+					if (section != null && StringUtils.equalsIgnoreCase(preferredEntityType, section.entityType())) {
+						return section;
+					}
+				}
+			}
+			return activeSection();
+		}
+	}
+
+	public record SectionSemanticReferenceContext(String key, String title, String entityType,
+			List<ReferenceTarget> referenceTargets, ReferenceTarget preview, List<Map<String, String>> rows,
+			List<String> columns, String summary) {
 	}
 
 }

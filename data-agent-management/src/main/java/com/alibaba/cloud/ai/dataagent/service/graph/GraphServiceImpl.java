@@ -39,6 +39,7 @@ import com.alibaba.cloud.ai.dataagent.dto.GraphRequest;
 import com.alibaba.cloud.ai.dataagent.dto.datasource.SqlRetryDto;
 import com.alibaba.cloud.ai.dataagent.dto.search.SqlResultColumnDTO;
 import com.alibaba.cloud.ai.dataagent.dto.search.SqlResultResponse;
+import com.alibaba.cloud.ai.dataagent.bo.schema.ResultBO;
 import com.alibaba.cloud.ai.dataagent.bo.schema.ResultSetBO;
 import com.alibaba.cloud.ai.dataagent.entity.SemanticModel;
 import com.alibaba.cloud.ai.dataagent.enums.TextType;
@@ -693,9 +694,33 @@ public class GraphServiceImpl implements GraphService {
 			return;
 		}
 
-		if (BurstAnalysisNode.class.getSimpleName().equals(node) && TextType.MARK_DOWN.equals(textType)) {
+		if (BurstAnalysisNode.class.getSimpleName().equals(node)) {
+			if (TextType.MARK_DOWN.equals(textType)) {
+				multiTurnContextManager.setRouteScene(threadId, ROUTE_SCENE_BURST_ANALYSIS);
+				multiTurnContextManager.appendAssistantChunk(threadId, chunk);
+				return;
+			}
+			if (TextType.RESULT_SET.equals(textType)) {
+				appendBurstStructuredSummary(threadId, chunk);
+			}
+		}
+	}
+
+	private void appendBurstStructuredSummary(String threadId, String chunk) {
+		if (!StringUtils.hasText(chunk)) {
+			return;
+		}
+		try {
+			ResultBO result = JsonUtil.getObjectMapper().readValue(chunk, ResultBO.class);
+			if (result == null || !ROUTE_SCENE_BURST_ANALYSIS.equalsIgnoreCase(result.getSceneType())
+					|| !StringUtils.hasText(result.getSummary())) {
+				return;
+			}
 			multiTurnContextManager.setRouteScene(threadId, ROUTE_SCENE_BURST_ANALYSIS);
-			multiTurnContextManager.appendAssistantChunk(threadId, chunk);
+			multiTurnContextManager.appendAssistantChunk(threadId, result.getSummary());
+		}
+		catch (Exception ex) {
+			log.debug("Failed to capture burst structured summary for threadId={}", threadId, ex);
 		}
 	}
 

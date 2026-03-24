@@ -15,6 +15,7 @@
  */
 package com.alibaba.cloud.ai.dataagent.dto.burst;
 
+import com.alibaba.cloud.ai.dataagent.bo.schema.ResultBO;
 import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -68,5 +69,7 @@ public class BurstAnalysisResponseDTO {
 	private String rawResponse;
 
 	private List<String> highlights;
+
+	private ResultBO structuredResult;
 
 }

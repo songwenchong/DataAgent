@@ -31,6 +31,7 @@ import com.alibaba.cloud.ai.dataagent.bo.schema.DisplayStyleBO;
 import com.alibaba.cloud.ai.dataagent.bo.schema.ReferencePreviewBO;
 import com.alibaba.cloud.ai.dataagent.bo.schema.ReferenceTargetBO;
 import com.alibaba.cloud.ai.dataagent.bo.schema.ResultBO;
+import com.alibaba.cloud.ai.dataagent.bo.schema.ResultSectionBO;
 import com.alibaba.cloud.ai.dataagent.bo.schema.ResultSetBO;
 import com.alibaba.cloud.ai.dataagent.connector.DbQueryParameter;
 import com.alibaba.cloud.ai.dataagent.connector.accessor.Accessor;
@@ -45,6 +46,7 @@ import com.alibaba.cloud.ai.dataagent.service.graph.Context.QueryResultContextMa
 import com.alibaba.cloud.ai.dataagent.service.graph.Context.QueryResultContextManager.ReferenceTarget;
 import com.alibaba.cloud.ai.dataagent.service.graph.Context.QueryResultContextManager.QueryResultContext;
 import com.alibaba.cloud.ai.dataagent.service.graph.Context.SessionSemanticReferenceContextService;
+import com.alibaba.cloud.ai.dataagent.service.graph.Context.SessionSemanticReferenceContextService.SectionSemanticReferenceContext;
 import com.alibaba.cloud.ai.dataagent.service.graph.Context.SessionSemanticReferenceContextService.SessionSemanticReferenceContext;
 import com.alibaba.cloud.ai.dataagent.service.llm.LlmService;
 import com.alibaba.cloud.ai.dataagent.service.nl2sql.Nl2SqlService;
@@ -190,11 +192,22 @@ public class SqlExecuteNode implements NodeAction {
 							: enrichResultSetWithChartConfig(state, resultSetBO);
 				ReferencePreviewBO referencePreview = saveLatestQueryResultContext(state, sqlQuery, resultSetBO, dbAccessor,
 						dbConfig);
+				List<ReferenceTargetBO> referenceTargetPayload = buildReferenceTargetPayload(referencePreview, state, sqlQuery,
+						resultSetBO, dbAccessor, dbConfig);
+				ResultSectionBO defaultSection = buildResultSection("query_result", "查询结果", entityTypeFromPayload(referenceTargetPayload,
+						StateUtil.getStringValue(state, REFERENCE_ENTITY_TYPE, ""), extractPrimaryTableName(sqlQuery)),
+						buildQueryResultSummary(resultSetBO, toReferenceTargets(referenceTargetPayload),
+								entityTypeFromPayload(referenceTargetPayload,
+										StateUtil.getStringValue(state, REFERENCE_ENTITY_TYPE, ""), extractPrimaryTableName(sqlQuery))),
+						resultSetBO, referencePreview, referenceTargetPayload);
 				resultBO.setResultSet(resultSetBO);
 				resultBO.setDisplayStyle(displayStyleBO);
 				resultBO.setReferencePreview(referencePreview);
-				resultBO.setReferenceTargets(buildReferenceTargetPayload(referencePreview, state, sqlQuery, resultSetBO,
-						dbAccessor, dbConfig));
+				resultBO.setReferenceTargets(referenceTargetPayload);
+				resultBO.setSceneType("sql_query");
+				resultBO.setSummary(defaultSection.getSummary());
+				resultBO.setActiveSectionKey(defaultSection.getKey());
+				resultBO.setSections(List.of(defaultSection));
 
 				String strResultSetJson = JsonUtil.getObjectMapper().writeValueAsString(resultSetBO);
 				String strResultJson = JsonUtil.getObjectMapper().writeValueAsString(resultBO);
@@ -286,10 +299,15 @@ public class SqlExecuteNode implements NodeAction {
 			referenceTargets = loadSupplementalReferenceTargets(sqlQuery, entityType, tableName, dbAccessor, dbConfig);
 			supplementalReference = !referenceTargets.isEmpty();
 		}
+		QueryResultContextManager.SectionContext defaultSection = new QueryResultContextManager.SectionContext("query_result",
+				"查询结果", entityType, resultSetBO.getColumn(), List.copyOf(resultSetBO.getData()),
+				referenceTargets.isEmpty() ? null : referenceTargets.get(0), referenceTargets,
+				buildQueryResultSummary(resultSetBO, referenceTargets, entityType));
 		QueryResultContext context = new QueryResultContext(entityType, tableName, resultSetBO.getColumn(),
-				List.copyOf(resultSetBO.getData()), referenceTargets);
+				List.copyOf(resultSetBO.getData()), referenceTargets, "sql_query", defaultSection.summary(),
+				defaultSection.key(), List.of(defaultSection));
 		queryResultContextManager.save(threadId, context);
-		saveSessionSemanticReferenceContext(sessionId, entityType, referenceTargets, resultSetBO);
+		saveSessionSemanticReferenceContext(sessionId, entityType, referenceTargets, resultSetBO, defaultSection);
 		appendQueryResultSummary(threadId, resultSetBO, referenceTargets, entityType);
 		ReferencePreviewBO referencePreview = buildReferencePreview(referenceTargets, supplementalReference);
 		log.info(
@@ -321,13 +339,31 @@ public class SqlExecuteNode implements NodeAction {
 	}
 
 	private void saveSessionSemanticReferenceContext(String sessionId, String entityType,
-			List<ReferenceTarget> referenceTargets, ResultSetBO resultSetBO) {
+			List<ReferenceTarget> referenceTargets, ResultSetBO resultSetBO, QueryResultContextManager.SectionContext section) {
 		if (StringUtils.isBlank(sessionId) || referenceTargets == null || referenceTargets.isEmpty()) {
 			return;
 		}
 		SessionSemanticReferenceContext context = new SessionSemanticReferenceContext(entityType, List.copyOf(referenceTargets),
-				"sql_execute", buildQueryResultSummary(resultSetBO, referenceTargets, entityType));
+				"sql_execute", buildQueryResultSummary(resultSetBO, referenceTargets, entityType), "sql_query",
+				section == null ? "" : section.key(),
+				section == null ? List.of()
+						: List.of(new SectionSemanticReferenceContext(section.key(), section.title(), section.entityType(),
+								section.referenceTargets(), section.referencePreview(), section.rows(), section.columns(),
+								section.summary())));
 		sessionSemanticReferenceContextService.save(sessionId, context);
+	}
+
+	private ResultSectionBO buildResultSection(String key, String title, String entityType, String summary,
+			ResultSetBO resultSetBO, ReferencePreviewBO referencePreview, List<ReferenceTargetBO> referenceTargets) {
+		return ResultSectionBO.builder()
+			.key(key)
+			.title(title)
+			.entityType(entityType)
+			.summary(summary)
+			.resultSet(resultSetBO)
+			.referencePreview(referencePreview)
+			.referenceTargets(referenceTargets)
+			.build();
 	}
 
 	private ReferencePreviewBO buildReferencePreview(List<ReferenceTarget> referenceTargets, boolean supplementalReference) {
@@ -371,6 +407,33 @@ public class SqlExecuteNode implements NodeAction {
 			.attributes(preview.getAttributes())
 			.supplementalReference(preview.getSupplementalReference())
 			.build();
+	}
+
+	private String entityTypeFromPayload(List<ReferenceTargetBO> referenceTargets, String explicitEntityType,
+			String tableName) {
+		if (referenceTargets != null && !referenceTargets.isEmpty()
+				&& StringUtils.isNotBlank(referenceTargets.get(0).getEntityType())) {
+			return referenceTargets.get(0).getEntityType();
+		}
+		return inferEntityType(explicitEntityType, tableName);
+	}
+
+	private List<ReferenceTarget> toReferenceTargets(List<ReferenceTargetBO> payload) {
+		if (payload == null || payload.isEmpty()) {
+			return List.of();
+		}
+		List<ReferenceTarget> targets = new ArrayList<>();
+		for (ReferenceTargetBO item : payload) {
+			if (item == null) {
+				continue;
+			}
+			targets.add(new ReferenceTarget(item.getRowOrdinal() == null ? 1 : item.getRowOrdinal(),
+					StringUtils.defaultString(item.getEntityType()), StringUtils.defaultString(item.getGid()),
+					StringUtils.defaultString(item.getLayerId()), StringUtils.defaultString(item.getDisplayName()),
+					StringUtils.defaultString(item.getNetworkName()),
+					item.getAttributes() == null ? Map.of() : new HashMap<>(item.getAttributes())));
+		}
+		return targets;
 	}
 
 	private void clearLatestQueryResultContext(OverAllState state) {

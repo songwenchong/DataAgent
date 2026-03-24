@@ -72,12 +72,18 @@ public class DynamicModelFactory {
 		OpenAiApi openAiApi = apiBuilder.build();
 
 		// 3. 构建运行时选项 (设置默认的模型名称，如 "deepseek-chat" 或 "gpt-4")
-		OpenAiChatOptions openAiChatOptions = OpenAiChatOptions.builder()
+		OpenAiChatOptions.Builder optionsBuilder = OpenAiChatOptions.builder()
 			.model(config.getModelName())
 			.temperature(config.getTemperature())
-			.maxTokens(config.getMaxTokens())
-			.streamUsage(true)
-			.build();
+			.maxTokens(config.getMaxTokens());
+		if (supportsStreamUsage(config)) {
+			optionsBuilder.streamUsage(true);
+		}
+		else {
+			log.info("Stream usage is disabled for provider [{}], model [{}], baseUrl [{}].", config.getProvider(),
+					config.getModelName(), config.getBaseUrl());
+		}
+		OpenAiChatOptions openAiChatOptions = optionsBuilder.build();
 		// 4. 返回统一的 OpenAiChatModel
 		return OpenAiChatModel.builder().openAiApi(openAiApi).defaultOptions(openAiChatOptions).build();
 	}
@@ -113,6 +119,18 @@ public class DynamicModelFactory {
 			Assert.hasText(config.getApiKey(), "apiKey must not be empty");
 		}
 		Assert.hasText(config.getModelName(), "modelName must not be empty");
+	}
+
+	private boolean supportsStreamUsage(ModelConfigDTO config) {
+		String baseUrl = config.getBaseUrl();
+		if (!StringUtils.hasText(baseUrl)) {
+			return true;
+		}
+		String normalized = baseUrl.trim().toLowerCase();
+		if (normalized.contains("dashscope.aliyuncs.com/compatible-mode")) {
+			return false;
+		}
+		return !normalized.contains("dashscope.aliyuncs.com");
 	}
 
 	private RestClient.Builder getProxiedRestClientBuilder(ModelConfigDTO config) {

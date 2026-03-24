@@ -25,19 +25,17 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ResultBO {
+public class ResultSectionBO {
 
-	private String sceneType;
+	private String key;
+
+	private String title;
+
+	private String entityType;
 
 	private String summary;
 
-	private String activeSectionKey;
-
-	private List<ResultSectionBO> sections;
-
 	private ResultSetBO resultSet;
-
-	private DisplayStyleBO displayStyle;
 
 	private ReferencePreviewBO referencePreview;
 

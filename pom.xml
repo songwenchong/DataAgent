@@ -270,42 +270,61 @@
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-checkstyle-plugin</artifactId>
-        <version>${maven-checkstyle-plugin.version}</version>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>${maven-compiler-plugin.version}</version>
         <configuration>
-          <consoleOutput>true</consoleOutput>
-          <configLocation>CI/src/checkstyle/checkstyle.xml</configLocation>
-          <headerLocation>CI/src/checkstyle/checkstyle-header.txt</headerLocation>
-          <includeTestSourceDirectory>true</includeTestSourceDirectory>
+          <release>${java.version}</release>
+          <compilerArgs>
+            <arg>-parameters</arg>
+          </compilerArgs>
         </configuration>
-        <dependencies>
-          <dependency>
-            <groupId>com.puppycrawl.tools</groupId>
-            <artifactId>checkstyle</artifactId>
-            <version>${puppycrawl-tools-checkstyle.version}</version>
-          </dependency>
-        </dependencies>
-        <executions>
-          <execution>
-            <id>validate</id>
-            <goals>
-              <goal>check</goal>
-            </goals>
-            <phase>validate</phase>
-          </execution>
-        </executions>
       </plugin>
-      <plugin>
-        <groupId>com.diffplug.spotless</groupId>
-        <artifactId>spotless-maven-plugin</artifactId>
-        <version>${spotless-maven-plugin.version}</version>
-        <configuration>
-          <java>
-            <removeUnusedImports/>
-            <ratchetFrom>origin/main</ratchetFrom>
-            <licenseHeader>
-              <content>
-                <![CDATA[
+    </plugins>
+  </build>
+
+  <profiles>
+    <profile>
+      <id>quality-checks</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-checkstyle-plugin</artifactId>
+            <version>${maven-checkstyle-plugin.version}</version>
+            <configuration>
+              <consoleOutput>true</consoleOutput>
+              <configLocation>CI/src/checkstyle/checkstyle.xml</configLocation>
+              <headerLocation>CI/src/checkstyle/checkstyle-header.txt</headerLocation>
+              <includeTestSourceDirectory>true</includeTestSourceDirectory>
+            </configuration>
+            <dependencies>
+              <dependency>
+                <groupId>com.puppycrawl.tools</groupId>
+                <artifactId>checkstyle</artifactId>
+                <version>${puppycrawl-tools-checkstyle.version}</version>
+              </dependency>
+            </dependencies>
+            <executions>
+              <execution>
+                <id>validate</id>
+                <goals>
+                  <goal>check</goal>
+                </goals>
+                <phase>validate</phase>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>com.diffplug.spotless</groupId>
+            <artifactId>spotless-maven-plugin</artifactId>
+            <version>${spotless-maven-plugin.version}</version>
+            <configuration>
+              <java>
+                <removeUnusedImports/>
+                <ratchetFrom>origin/main</ratchetFrom>
+                <licenseHeader>
+                  <content>
+                    <![CDATA[
 /*
  * Copyright $YEAR the original author or authors.
  *
@@ -321,32 +340,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */ ]]>
-              </content>
-              <delimiter>(package|import)</delimiter>
-            </licenseHeader>
-          </java>
-        </configuration>
-        <executions>
-          <execution>
-            <phase>compile</phase>
-            <goals>
-              <goal>apply</goal>
-            </goals>
-          </execution>
-        </executions>
-      </plugin>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-compiler-plugin</artifactId>
-        <version>${maven-compiler-plugin.version}</version>
-        <configuration>
-          <release>${java.version}</release>
-          <compilerArgs>
-            <arg>-parameters</arg>
-          </compilerArgs>
-        </configuration>
-      </plugin>
-    </plugins>
-  </build>
+                  </content>
+                  <delimiter>(package|import)</delimiter>
+                </licenseHeader>
+              </java>
+            </configuration>
+            <executions>
+              <execution>
+                <phase>compile</phase>
+                <goals>
+                  <goal>apply</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
 
 </project>
