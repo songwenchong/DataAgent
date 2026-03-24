@@ -230,13 +230,19 @@ public class BurstAnalysisServiceImpl implements BurstAnalysisService {
                                                           String threadId, String sessionId) {
         String normalized = StringUtils.defaultString(query).trim();
         Integer ordinal = parseOrdinal(normalized);
+        BurstAnalysisContext context = burstAnalysisContextManager.get(threadId);
+        PipeAnalysisRequest burstValveActionRequest = resolveValveActionFromBurstContext(normalized, ordinal,
+                explicitRequest, context);
+        if (burstValveActionRequest != explicitRequest) {
+            return burstValveActionRequest;
+        }
+
         PipeAnalysisRequest queryResultRequest = resolveRequestFromLatestQueryResult(normalized, ordinal, explicitRequest,
                 threadId, sessionId);
         if (queryResultRequest != explicitRequest) {
             return queryResultRequest;
         }
 
-        BurstAnalysisContext context = burstAnalysisContextManager.get(threadId);
         if (context == null) {
             return explicitRequest;
         }
@@ -249,18 +255,6 @@ public class BurstAnalysisServiceImpl implements BurstAnalysisService {
             }
         }
 
-        if (containsAny(normalized, VALVE_REFERENCE_KEYWORDS) && isValveActionRequest(normalized)) {
-            String closeValveId = resolveValveId(context, ordinal);
-            if (StringUtils.isNotBlank(closeValveId) && StringUtils.isNotBlank(context.sourceLayerId())
-                    && StringUtils.isNotBlank(context.sourceGid())) {
-                String closeValves = mergeCloseValves(explicitRequest.closeValves(), closeValveId);
-                String parentAnalysisId = StringUtils.defaultIfBlank(explicitRequest.parentAnalysisId(),
-                        context.analysisId());
-                return new PipeAnalysisRequest(context.sourceLayerId(), context.sourceGid(), closeValves,
-                        parentAnalysisId);
-            }
-        }
-
         if (normalized.contains(BURST_POINT) && StringUtils.isNotBlank(context.sourceLayerId())
                 && StringUtils.isNotBlank(context.sourceGid())) {
             return new PipeAnalysisRequest(context.sourceLayerId(), context.sourceGid(), explicitRequest.closeValves(),
@@ -268,6 +262,22 @@ public class BurstAnalysisServiceImpl implements BurstAnalysisService {
         }
 
         return explicitRequest;
+    }
+
+    private PipeAnalysisRequest resolveValveActionFromBurstContext(String normalizedQuery, Integer ordinal,
+                                                                   PipeAnalysisRequest explicitRequest,
+                                                                   BurstAnalysisContext context) {
+        if (context == null || !containsAny(normalizedQuery, VALVE_REFERENCE_KEYWORDS) || !isValveActionRequest(normalizedQuery)) {
+            return explicitRequest;
+        }
+        String closeValveId = resolveValveId(context, ordinal);
+        if (StringUtils.isBlank(closeValveId) || StringUtils.isBlank(context.sourceLayerId())
+                || StringUtils.isBlank(context.sourceGid())) {
+            return explicitRequest;
+        }
+        String closeValves = mergeCloseValves(explicitRequest.closeValves(), closeValveId);
+        String parentAnalysisId = StringUtils.defaultIfBlank(explicitRequest.parentAnalysisId(), context.analysisId());
+        return new PipeAnalysisRequest(context.sourceLayerId(), context.sourceGid(), closeValves, parentAnalysisId);
     }
 
     private String buildClarificationSummary(String query, String threadId, String sessionId) {

@@ -86,25 +86,31 @@ public class PlanExecutorNode implements NodeAction {
 		List<ExecutionStep> executionPlan = plan.getExecutionPlan();
 
 		boolean isOnlyNl2Sql = state.value(IS_ONLY_NL2SQL, false);
+		boolean sqlResultOnly = state.value(LIGHTWEIGHT_SQL_RESULT_MODE, false);
 
 		// Check if the plan is completed
 		if (currentStep > executionPlan.size()) {
 			log.info("Plan completed, current step: {}, total steps: {}", currentStep, executionPlan.size());
-			return Map.of(PLAN_CURRENT_STEP, 1, PLAN_NEXT_NODE, isOnlyNl2Sql ? StateGraph.END : REPORT_GENERATOR_NODE,
-					PLAN_VALIDATION_STATUS, true);
+			boolean shouldEndWithoutReport = isOnlyNl2Sql || sqlResultOnly;
+			return Map.of(PLAN_CURRENT_STEP, 1, PLAN_NEXT_NODE,
+					shouldEndWithoutReport ? StateGraph.END : REPORT_GENERATOR_NODE, PLAN_VALIDATION_STATUS, true);
 		}
 
 		// Get current step and determine next node
 		ExecutionStep executionStep = executionPlan.get(currentStep - 1);
 		String toolToUse = executionStep.getToolToUse();
 
-		return determineNextNode(toolToUse);
+		return determineNextNode(toolToUse, sqlResultOnly);
 	}
 
 	/**
 	 * Determine the next node to execute
 	 */
-	private Map<String, Object> determineNextNode(String toolToUse) {
+	private Map<String, Object> determineNextNode(String toolToUse, boolean sqlResultOnly) {
+		if (sqlResultOnly && REPORT_GENERATOR_NODE.equals(toolToUse)) {
+			log.info("Lightweight sql result mode enabled, skipping report generation node.");
+			return Map.of(PLAN_NEXT_NODE, StateGraph.END, PLAN_VALIDATION_STATUS, true);
+		}
 		if (SUPPORTED_NODES.contains(toolToUse)) {
 			log.info("Determined next execution node: {}", toolToUse);
 			return Map.of(PLAN_NEXT_NODE, toolToUse, PLAN_VALIDATION_STATUS, true);
