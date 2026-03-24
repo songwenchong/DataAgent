@@ -96,11 +96,12 @@ public class SqlServerJdbcDdl extends AbstractJdbcDdl {
 
 	@Override
 	public List<TableInfoBO> showTables(Connection connection, String schema, String tablePattern) {
-		String sql = "SELECT t.TABLE_NAME, \n" + "CAST(ep.value AS NVARCHAR(MAX)) AS TABLE_COMMENT \n"
-				+ "FROM INFORMATION_SCHEMA.TABLES t \n" + "LEFT JOIN sys.tables st ON t.TABLE_NAME = st.name \n"
-				+ "AND SCHEMA_NAME(st.schema_id) = t.TABLE_SCHEMA "
-				+ "LEFT JOIN sys.extended_properties ep ON st.object_id = ep.major_id AND ep.minor_id = 0 AND ep.name = 'MS_Description' \n"
-				+ "WHERE t.TABLE_SCHEMA = '%s' AND t.TABLE_TYPE = 'BASE TABLE' \n";
+		String sql = "SELECT t.TABLE_NAME, \n" + "CAST(ep.value AS NVARCHAR(MAX)) AS TABLE_COMMENT, \n"
+				+ "t.TABLE_TYPE \n" + "FROM INFORMATION_SCHEMA.TABLES t \n"
+				+ "LEFT JOIN sys.objects so ON t.TABLE_NAME = so.name \n"
+				+ "AND SCHEMA_NAME(so.schema_id) = t.TABLE_SCHEMA AND so.type IN ('U', 'V') \n"
+				+ "LEFT JOIN sys.extended_properties ep ON so.object_id = ep.major_id AND ep.minor_id = 0 AND ep.name = 'MS_Description' \n"
+				+ "WHERE t.TABLE_SCHEMA = '%s' AND t.TABLE_TYPE IN ('BASE TABLE', 'VIEW') \n";
 		if (StringUtils.isNotBlank(tablePattern)) {
 			sql += "AND t.TABLE_NAME LIKE '%%' + '%s' + '%%' \n";
 		}
@@ -121,7 +122,9 @@ public class SqlServerJdbcDdl extends AbstractJdbcDdl {
 				}
 				String tableName = resultArr[i][0];
 				String tableDesc = resultArr[i][1];
-				tableInfoList.add(TableInfoBO.builder().name(tableName).description(tableDesc).build());
+				String tableType = resultArr[i].length > 2 ? resultArr[i][2] : null;
+				tableInfoList
+					.add(TableInfoBO.builder().schema(schema).name(tableName).description(tableDesc).type(tableType).build());
 			}
 		}
 		catch (SQLException e) {
@@ -133,11 +136,13 @@ public class SqlServerJdbcDdl extends AbstractJdbcDdl {
 
 	@Override
 	public List<TableInfoBO> fetchTables(Connection connection, String schema, List<String> tables) {
-		String sql = "SELECT t.TABLE_NAME, \n" + "CAST(ep.value AS NVARCHAR(MAX)) AS TABLE_COMMENT \n"
-				+ "FROM INFORMATION_SCHEMA.TABLES t \n" + "LEFT JOIN sys.tables st ON t.TABLE_NAME = st.name \n"
-				+ "LEFT JOIN sys.extended_properties ep ON st.object_id = ep.major_id AND ep.minor_id = 0 AND ep.name = 'MS_Description' \n"
-				+ "WHERE t.TABLE_SCHEMA = '%s' AND t.TABLE_TYPE = 'BASE TABLE' \n" + "AND t.TABLE_NAME IN (%s) \n"
-				+ "ORDER BY t.TABLE_NAME;";
+		String sql = "SELECT t.TABLE_NAME, \n" + "CAST(ep.value AS NVARCHAR(MAX)) AS TABLE_COMMENT, \n"
+				+ "t.TABLE_TYPE \n" + "FROM INFORMATION_SCHEMA.TABLES t \n"
+				+ "LEFT JOIN sys.objects so ON t.TABLE_NAME = so.name \n"
+				+ "AND SCHEMA_NAME(so.schema_id) = t.TABLE_SCHEMA AND so.type IN ('U', 'V') \n"
+				+ "LEFT JOIN sys.extended_properties ep ON so.object_id = ep.major_id AND ep.minor_id = 0 AND ep.name = 'MS_Description' \n"
+				+ "WHERE t.TABLE_SCHEMA = '%s' AND t.TABLE_TYPE IN ('BASE TABLE', 'VIEW') \n"
+				+ "AND t.TABLE_NAME IN (%s) \n" + "ORDER BY t.TABLE_NAME;";
 
 		List<TableInfoBO> tableInfoList = Lists.newArrayList();
 		String tableListStr = String.join(", ", tables.stream().map(x -> "'" + x + "'").collect(Collectors.toList()));
@@ -154,7 +159,9 @@ public class SqlServerJdbcDdl extends AbstractJdbcDdl {
 				}
 				String tableName = resultArr[i][0];
 				String tableDesc = resultArr[i][1];
-				tableInfoList.add(TableInfoBO.builder().name(tableName).description(tableDesc).build());
+				String tableType = resultArr[i].length > 2 ? resultArr[i][2] : null;
+				tableInfoList
+					.add(TableInfoBO.builder().schema(schema).name(tableName).description(tableDesc).type(tableType).build());
 			}
 		}
 		catch (SQLException e) {

@@ -250,7 +250,7 @@ yarn dev
 
 ![datasource-validation.png](../../img/datasource-validation.png)
 
-对于添加的新数据源，需要选择使用哪些数据表进行数据分析。
+对于添加的新数据源，需要选择使用哪些数据表进行数据分析；如果是 SQL Server，当前也支持选择视图参与初始化和分析。
 
 ![datasource-tables.png](../../img/datasource-tables.png)
 
