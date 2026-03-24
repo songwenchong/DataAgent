@@ -9,34 +9,39 @@ Use this skill for repository-level engineering work on DataAgent.
 
 ## Workflow
 
-1. Start with `docs/CODEBASE_GUIDE.md` to locate the real code entry points.
-2. If the work touches run-page behavior, Graph workflow, schema recovery, vector persistence, or streaming failures, also read `docs/agent6-pipe-network-tuning-notes-2026-03-18.md`.
-3. If the work touches burst-analysis routing, multi-turn result references, run-page burst debugging, or session/thread context isolation, also read `docs/agent6-burst-analysis-engineering-notes-2026-03-24.md`.
-4. Map the task to the correct layer before editing:
+1. Start with `docs/README.md` to understand the document layout, then use `docs/architecture/codebase-guide.md` to locate the real code entry points.
+2. If the work touches run-page behavior, Graph workflow, schema recovery, vector persistence, or streaming failures, also read `docs/engineering-notes/agent6-pipe-network-tuning-notes-2026-03-18.md`.
+3. If the work touches burst-analysis routing, multi-turn result references, run-page burst debugging, or session/thread context isolation, also read `docs/engineering-notes/agent6-burst-analysis-engineering-notes-2026-03-24.md`.
+4. If the work touches `agent/6` pipeline metadata, work orders, or query rules, also read:
+   - `docs/domain-reference/agent6-pipeline/`
+   - `docs/domain-reference/agent6-workorder/`
+5. Map the task to the correct layer before editing:
    - backend workflow: `data-agent-management/src/main/java/com/alibaba/cloud/ai/dataagent/workflow/`
    - backend graph/service wiring: `data-agent-management/src/main/java/com/alibaba/cloud/ai/dataagent/config/` and `.../service/graph/`
    - prompt changes: `data-agent-management/src/main/resources/prompts/`
    - frontend run/config pages: `data-agent-frontend/src/views/` and `data-agent-frontend/src/components/`
    - vector/schema recovery: `.../service/vectorstore/`, `.../service/schema/`, `.../service/agent/AgentStartupInitialization.java`
-5. When changing Graph behavior, inspect both the Node and its Dispatcher. Do not change only one side.
-6. When changing knowledge recall or schema initialization, verify both:
+6. When changing Graph behavior, inspect both the Node and its Dispatcher. Do not change only one side.
+7. When changing knowledge recall or schema initialization, verify both:
    - relational configuration state
    - vector document recovery and persistence
-7. Prefer updating project docs together with code when the change affects workflow, startup behavior, or debugging steps.
+8. Prefer updating project docs together with code when the change affects workflow, startup behavior, debugging steps, or long-lived domain rules.
 
 ## Default Reading Order
 
 1. `README.md`
-2. `docs/ARCHITECTURE.md`
-3. `docs/DEVELOPER_GUIDE.md`
-4. `docs/CODEBASE_GUIDE.md`
-5. `docs/agent6-pipe-network-tuning-notes-2026-03-18.md` when the issue smells like startup/schema/vector/streaming
-6. `docs/agent6-burst-analysis-engineering-notes-2026-03-24.md` when the issue smells like burst branch routing, session semantic references, or run-page burst follow-up questions
-7. Relevant backend/frontend entry files from that guide
+2. `docs/README.md`
+3. `docs/architecture/architecture.md`
+4. `docs/guides/developer-guide.md`
+5. `docs/architecture/codebase-guide.md`
+6. `docs/domain-reference/agent6-pipeline/` or `docs/domain-reference/agent6-workorder/` when the issue depends on domain facts
+7. `docs/engineering-notes/agent6-pipe-network-tuning-notes-2026-03-18.md` when the issue smells like startup/schema/vector/streaming
+8. `docs/engineering-notes/agent6-burst-analysis-engineering-notes-2026-03-24.md` when the issue smells like burst branch routing, session semantic references, or run-page burst follow-up questions
+9. Relevant backend/frontend entry files from that guide
 
 ## Burst Analysis And Session Semantics
 
-Read `docs/agent6-burst-analysis-engineering-notes-2026-03-24.md` before changing burst analysis, follow-up result references, or run-page verification for `agent/6`.
+Read `docs/engineering-notes/agent6-burst-analysis-engineering-notes-2026-03-24.md` before changing burst analysis, follow-up result references, or run-page verification for `agent/6`.
 
 When the task touches burst routing or multi-turn pipe references, prioritize checking:
 

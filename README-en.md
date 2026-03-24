@@ -61,7 +61,7 @@ Additionally, this project natively supports **MCP (Model Context Protocol)**, e
 
 ## Quick Start
 
-> For detailed installation and configuration guide, please refer to [Quick Start Guide](docs/QUICK_START.md).
+> For detailed installation and configuration guide, please refer to [Quick Start Guide](docs/guides/quick-start.md).
 
 ### 1. Prerequisites
 - JDK 17+
@@ -90,16 +90,19 @@ Open your browser and visit `http://localhost:3000` to start creating your first
 
 | Document | Contents |
 | :--- | :--- |
-| [Quick Start](docs/QUICK_START.md) | Environment requirements, database import, basic configuration, getting started |
-| [Architecture Design](docs/ARCHITECTURE.md) | System layered architecture, StateGraph and workflow design, core module sequence diagrams |
-| [Developer Guide](docs/DEVELOPER_GUIDE.md) | Development environment setup, detailed configuration manual, coding standards, extension development (vector DB/models) |
-| [Advanced Features](docs/ADVANCED_FEATURES.md) | API Key invocation, MCP server configuration, custom hybrid retrieval strategies, Python executor configuration |
-| [Knowledge Configuration Best Practices](docs/KNOWLEDGE_USAGE.md) | Explanation and usage of semantic models, business knowledge, and agent knowledge |
+| [Documentation Overview](docs/README.md) | Documentation categories, reading paths, lifecycle, and maintenance rules |
+| [Quick Start](docs/guides/quick-start.md) | Environment requirements, database import, basic configuration, getting started |
+| [Architecture Design](docs/architecture/architecture.md) | System layered architecture, StateGraph and workflow design, core module sequence diagrams |
+| [Developer Guide](docs/guides/developer-guide.md) | Development environment setup, detailed configuration manual, coding standards, extension development (vector DB/models) |
+| [Codebase Guide](docs/architecture/codebase-guide.md) | Real code entrypoints, runtime flows, and common modification areas |
+| [Advanced Features](docs/guides/advanced-features.md) | API Key invocation, MCP server configuration, custom hybrid retrieval strategies, Python executor configuration |
+| [Knowledge Configuration Best Practices](docs/guides/knowledge-usage.md) | Explanation and usage of semantic models, business knowledge, and agent knowledge |
+| [Domain Reference Index](docs/domain-reference/index.md) | Agent 6 pipeline, work-order, metadata, and query-rule references |
 
 ## Community & Contribution
 
 - **DingTalk Group**: `154405001431` ("DataAgent User Group 1") Some users may not be able to join due to account security issues. If possible, please try with a different account.
-- **Contribution Guide**: Community contributions are welcome! Please refer to the [Developer Guide](docs/DEVELOPER_GUIDE.md) to learn how to submit PRs.
+- **Contribution Guide**: Community contributions are welcome! Please refer to the [Developer Guide](docs/guides/developer-guide.md) to learn how to submit PRs.
 
 ## License
 

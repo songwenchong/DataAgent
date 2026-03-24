@@ -61,7 +61,7 @@
 
 ## 🚀 快速开始
 
-> 详细的安装和配置指南请参考 [📑 快速开始文档](docs/QUICK_START.md)。
+> 详细的安装和配置指南请参考 [📑 快速开始文档](docs/guides/quick-start.md)。
 
 ### 1. 准备环境
 - JDK 17+
@@ -90,14 +90,16 @@ npm install && npm run dev
 
 | 文档 | 此文档包含的内容 |
 | :--- | :--- |
-| [快速开始](docs/QUICK_START.md) | 环境要求、数据库导入、基础配置、系统初体验 |
-| [架构设计](docs/ARCHITECTURE.md) | 系统分层架构、StateGraph与工作流设计、核心模块时序图 |
-| [开发者指南](docs/DEVELOPER_GUIDE.md) | 开发环境搭建、详细配置手册、代码规范、扩展开发(向量库/模型) |
-| [代码导览与开发索引](docs/CODEBASE_GUIDE.md) | 代码目录地图、核心入口文件、运行链路、常见改动位置 |
-| [高级功能](docs/ADVANCED_FEATURES.md) | API Key 调用、MCP 服务器配置、自定义混合检索策略、Python执行器配置 |
-| [知识配置最佳实践](docs/KNOWLEDGE_USAGE.md) | 语义模型，业务知识，智能体知识的解释和使用 |
-| [本地开发环境说明](docs/LOCAL_DEV_SETUP.md) | 项目级 settings.xml、项目级 JDK 17、本地执行命令 |
-| [agent6 管网调优记录](docs/agent6-pipe-network-tuning-notes-2026-03-18.md) | 向量恢复、Schema 初始化、循环执行、流式失败等问题的排障记录 |
+| [文档总览](docs/README.md) | 文档分类、阅读路径、生命周期与维护规则 |
+| [快速开始](docs/guides/quick-start.md) | 环境要求、数据库导入、基础配置、系统初体验 |
+| [架构设计](docs/architecture/architecture.md) | 系统分层架构、StateGraph与工作流设计、核心模块时序图 |
+| [开发者指南](docs/guides/developer-guide.md) | 开发环境搭建、详细配置手册、代码规范、扩展开发(向量库/模型) |
+| [代码导览与开发索引](docs/architecture/codebase-guide.md) | 代码目录地图、核心入口文件、运行链路、常见改动位置 |
+| [高级功能](docs/guides/advanced-features.md) | API Key 调用、MCP 服务器配置、自定义混合检索策略、Python执行器配置 |
+| [知识配置最佳实践](docs/guides/knowledge-usage.md) | 语义模型，业务知识，智能体知识的解释和使用 |
+| [本地开发环境说明](docs/guides/local-dev-setup.md) | 项目级 settings.xml、项目级 JDK 17、本地执行命令 |
+| [agent6 管网调优记录](docs/engineering-notes/agent6-pipe-network-tuning-notes-2026-03-18.md) | 向量恢复、Schema 初始化、循环执行、流式失败等问题的排障记录 |
+| [领域资料索引](docs/domain-reference/index.md) | agent/6 管网、工单、元数据、查询规则等领域参考资料 |
 
 ## 🛠️ 项目级 Maven / JDK
 
@@ -112,7 +114,7 @@ npm install && npm run dev
 ## 🤝 加入社区 & 贡献
 
 - **钉钉交流群**: `154405001431` ("DataAgent用户1群") 部分用户可能因为账号安全问题无法加入，条件允许的情况下可换账号申请。
-- **贡献指南**: 欢迎社区贡献！请查阅 [开发者文档](docs/DEVELOPER_GUIDE.md) 了解如何提交 PR。
+- **贡献指南**: 欢迎社区贡献！请查阅 [开发者文档](docs/guides/developer-guide.md) 了解如何提交 PR。
 
 ## 📄 许可证
 

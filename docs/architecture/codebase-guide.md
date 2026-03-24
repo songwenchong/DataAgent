@@ -9,7 +9,7 @@
 - 需要新增节点、提示词、知识配置或模型配置能力
 - 需要排查向量召回、Schema 初始化、流式响应等问题
 
-建议先读 [架构设计](./ARCHITECTURE.md) 了解总体结构，再用本文档按文件入口落到具体代码。
+建议先读 [架构设计](architecture.md) 了解总体结构，再用本文档按文件入口落到具体代码。
 
 ## 2. 仓库结构
 
@@ -17,9 +17,9 @@
 | :--- | :--- | :--- |
 | `data-agent-management/` | Spring Boot 后端 | 智能体配置管理、Graph 工作流、NL2SQL、向量召回、模型调度 |
 | `data-agent-frontend/` | Vue 前端 | 智能体创建、详情配置、运行页、模型配置页 |
-| `docs/` | 项目文档 | 架构、开发说明、知识配置、排障与调优记录 |
+| `docs/` | 项目文档 | 架构、手册、设计、计划、排障与领域资料 |
+| `docs/domain-reference/` | 领域资料 | `agent/6` 管网元数据、工单模型、查询规则等专项参考 |
 | `scripts/` | 本地启动与环境脚本 | 启停前后端、项目级 JDK/Maven、快捷启动脚本 |
-| `管网元数据说明/` | 本地业务资料 | 管网元数据、实施方案、专项知识配置说明 |
 
 ## 3. 后端主入口
 
@@ -306,7 +306,7 @@
 | `mvn-local.sh` | 使用项目级 Maven 配置执行命令 |
 | `use-project-env.sh` | 加载项目级环境变量 |
 
-本地环境说明见 [本地开发环境说明](./LOCAL_DEV_SETUP.md)。
+本地环境说明见 [本地开发环境说明](../guides/local-dev-setup.md)。
 
 ## 10. 常见开发任务的落点
 
@@ -365,8 +365,8 @@
 第一次接手此项目，建议按下面顺序读：
 
 1. `README.md`
-2. `docs/ARCHITECTURE.md`
-3. `docs/DEVELOPER_GUIDE.md`
+2. `docs/architecture/architecture.md`
+3. `docs/guides/developer-guide.md`
 4. `data-agent-management/.../config/DataAgentConfiguration.java`
 5. `data-agent-management/.../service/graph/GraphServiceImpl.java`
 6. `workflow/node/` 与 `workflow/dispatcher/`
@@ -377,13 +377,13 @@
 
 下列文档记录了本地管网场景和运行期问题的实战经验，后续调优前建议先看：
 
-- [agent6 管网调优记录](./agent6-pipe-network-tuning-notes-2026-03-18.md)
-- [知识配置最佳实践](./KNOWLEDGE_USAGE.md)
-- [本地开发环境说明](./LOCAL_DEV_SETUP.md)
+- [agent6 管网调优记录](../engineering-notes/agent6-pipe-network-tuning-notes-2026-03-18.md)
+- [知识配置最佳实践](../guides/knowledge-usage.md)
+- [本地开发环境说明](../guides/local-dev-setup.md)
 
 ## 13. 维护建议
 
 - 新增功能时，优先在本文档补“改动入口”，不要只改代码不留索引
-- 涉及 Graph 路由变更时，必须同步更新 `ARCHITECTURE.md`
+- 涉及 Graph 路由变更时，必须同步更新 `docs/architecture/architecture.md`
 - 涉及启动恢复、向量持久化、流式执行问题时，必须补专项排障记录
 - 文档要写“实际入口文件”，不要只写抽象概念
