@@ -372,3 +372,40 @@
    - 纯序号
 
 遵守以上规则，可以显著减少 burst 场景里“看起来像是模型没懂，实际是工程上下文混用”的重复踩坑。
+
+---
+
+## 11. 上一轮结果追问闭环
+
+当前实现里，“上一轮结果追问”已经改为图里的通用能力，而不是继续在 burst 服务层做句式兜底：
+
+1. `IntentRecognitionNode`
+   - 由 LLM 输出 `query_kind`、`follow_up_action`、`target_entity`、`context_scope`
+   - `gis_spatial_query` 继续作为顶层 intent
+2. `ReferenceResolutionDispatcher`
+   - 对 `result_followup + list/explain` 分流到 `ResultFollowUpAnswerNode`
+   - 对 `reanalyze` 保持进入 `BurstAnalysisRouteNode`
+3. `ResultFollowUpAnswerNode`
+   - 优先消费 `SessionSemanticReferenceContextService`
+   - 其次消费 `QueryResultContextManager`
+   - 输出完整 `RESULT_SET`，而不是只返文本摘要
+
+维护规则固定为：
+
+- `BurstAnalysisRouteNode` 只负责 burst 查询和重分析，不再承担“上一轮结果解释”职责
+- `ResultFollowUpAnswerNode` 是 structured result 的通用消费入口，不只服务 burst
+- `ReferenceResolutionNode` 对“哪2个/哪些/分别是哪些”按结果枚举追问处理，不把数量短语误当 ordinal
+## 12. 新查询与上一轮结果追问的边界
+
+需要长期保持一条规则：只有明确引用上一轮结果时，才允许复用 burst 上下文。
+
+- `需关闭 2 个阀门，是哪2个`：属于上一轮 burst 结果追问
+- `刚才需关闭的阀门有哪些`：属于上一轮 burst 结果追问
+- `查询需关闭 7 个阀门的信息`：属于新的系统数据查询，不得因为出现“需关闭 + 阀门”就进入 burst follow-up
+
+工程上要同时满足两层约束：
+
+1. `IntentRecognitionNode` 应把新的过滤查询标为 `fresh_query + system_data`
+2. `ReferenceResolutionDispatcher` 只有在 `resolvedReference=true` 时才进入 `ResultFollowUpAnswerNode`
+
+不要只依赖 LLM 的 `query_kind=result_followup` 单点判断来消费上一轮 burst 结果。

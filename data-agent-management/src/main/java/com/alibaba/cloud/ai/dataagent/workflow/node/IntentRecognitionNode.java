@@ -31,6 +31,7 @@ import com.alibaba.cloud.ai.graph.GraphResponse;
 import com.alibaba.cloud.ai.graph.OverAllState;
 import com.alibaba.cloud.ai.graph.action.NodeAction;
 import com.alibaba.cloud.ai.graph.streaming.StreamingOutput;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.AllArgsConstructor;
@@ -60,6 +61,14 @@ public class IntentRecognitionNode implements NodeAction {
 	private static final String INTENT_GIS = "gis_spatial_query";
 
 	private static final String INTENT_HELLO = "hello";
+
+	private static final String QUERY_KIND = "query_kind";
+
+	private static final String FOLLOW_UP_ACTION = "follow_up_action";
+
+	private static final String TARGET_ENTITY = "target_entity";
+
+	private static final String CONTEXT_SCOPE = "context_scope";
 
 	private static final List<String> HELLO_KEYWORDS = List.of(
 			"\u4F60\u597D", "\u60A8\u597D", "hello", "hi", "\u55E8", "\u5728\u5417", "\u65E9\u4E0A\u597D",
@@ -143,6 +152,7 @@ public class IntentRecognitionNode implements NodeAction {
 		output.setIntent(INTENT_GIS);
 		output.setRawQuery(userInput);
 		output.setReplyText("");
+		output.setEntities(defaultEntities());
 		return output;
 	}
 
@@ -154,6 +164,8 @@ public class IntentRecognitionNode implements NodeAction {
 		if (StringUtils.isBlank(output.getRawQuery())) {
 			output.setRawQuery(userInput);
 		}
+
+		output.setEntities(normalizeEntities(output.getEntities()));
 
 		String intent = StringUtils.trimToEmpty(output.getIntent()).toLowerCase();
 		if (INTENT_GIS.equals(intent)) {
@@ -198,6 +210,37 @@ public class IntentRecognitionNode implements NodeAction {
 
 	private String normalize(String text) {
 		return StringUtils.trimToEmpty(text).toLowerCase();
+	}
+
+	private Map<String, Object> normalizeEntities(Map<String, Object> entities) {
+		Map<String, Object> normalized = defaultEntities();
+		if (entities == null || entities.isEmpty()) {
+			return normalized;
+		}
+		normalized.put(QUERY_KIND, normalizeEntityValue(entities.get(QUERY_KIND), "fresh_query"));
+		normalized.put(FOLLOW_UP_ACTION, normalizeEntityValue(entities.get(FOLLOW_UP_ACTION), "explain"));
+		normalized.put(TARGET_ENTITY, normalizeEntityValue(entities.get(TARGET_ENTITY), "unknown"));
+		normalized.put(CONTEXT_SCOPE, normalizeEntityValue(entities.get(CONTEXT_SCOPE), "system_data"));
+		entities.forEach((key, value) -> {
+			if (!normalized.containsKey(key) && value != null) {
+				normalized.put(key, value);
+			}
+		});
+		return normalized;
+	}
+
+	private Map<String, Object> defaultEntities() {
+		Map<String, Object> defaults = new LinkedHashMap<>();
+		defaults.put(QUERY_KIND, "fresh_query");
+		defaults.put(FOLLOW_UP_ACTION, "explain");
+		defaults.put(TARGET_ENTITY, "unknown");
+		defaults.put(CONTEXT_SCOPE, "system_data");
+		return defaults;
+	}
+
+	private String normalizeEntityValue(Object rawValue, String defaultValue) {
+		String normalized = StringUtils.trimToEmpty(rawValue == null ? "" : String.valueOf(rawValue)).toLowerCase();
+		return StringUtils.defaultIfBlank(normalized, defaultValue);
 	}
 
 	private String summarizeSessionSemanticContext(SessionSemanticReferenceContext sessionSemanticContext) {

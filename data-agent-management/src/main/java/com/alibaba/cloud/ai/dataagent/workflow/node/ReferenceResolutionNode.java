@@ -76,6 +76,12 @@ public class ReferenceResolutionNode implements NodeAction {
 			"\u8FD9\u4E2A", "\u4E0A\u8FF0", "\u4E0A\u9762", "\u8FD9\u4E9B", "\u5B83", "\u8FD9\u6839", "\u90A3\u6839",
 			"\u90A3\u6761", "\u4E0A\u4E00\u6839", "\u521A\u624D\u90A3\u6839");
 
+	private static final List<String> RESULT_ENUMERATION_KEYWORDS = List.of("\u54ea", "\u54ea\u4E9B", "\u662F\u54EA",
+			"\u5206\u522B", "\u5206\u522B\u662F\u54EA\u4E9B", "\u5206\u522B\u662F\u4EC0\u4E48");
+
+	private static final List<String> EXPLICIT_FOLLOWUP_SCOPE_KEYWORDS = List.of("\u8FD9", "\u8FD9\u4E9B", "\u4E0A\u6B21",
+			"\u4E0A\u4E00\u8F6E", "\u521A\u624D", "\u9700\u5173\u95ED\u7684");
+
 	private static final List<String> EXPLICIT_SCOPE_KEYWORDS = List.of("\u4F9B\u6C34\u7BA1\u7F51",
 			"\u6392\u6C34\u7BA1\u7F51", "\u6C61\u6C34\u7BA1\u7F51", "\u96E8\u6C34\u7BA1\u7F51",
 			"\u70ED\u529B\u7BA1\u7F51", "\u71C3\u6C14\u7BA1\u7F51", "\u6D88\u9632\u7BA1\u7F51",
@@ -121,7 +127,7 @@ public class ReferenceResolutionNode implements NodeAction {
 
 		String entityType = detectEntityType(normalized, referenceContext, intentOutput);
 		String ordinal = detectOrdinal(userInput);
-		boolean hasReferenceMarker = hasReferenceMarker(normalized, ordinal);
+		boolean hasReferenceMarker = hasReferenceMarker(normalized, ordinal, intentOutput);
 		log.info(
 				"[CTX_TRACE][REFERENCE_RESOLUTION][INPUT][threadId={}][sessionId={}] userInput={} hasReferenceMarker={} ordinal={} entityType={} hasReferenceContext={} hasBurstContext={} hasSessionSemanticContext={}",
 				threadId, userInput, hasReferenceMarker, StringUtils.defaultString(ordinal),
@@ -225,8 +231,9 @@ public class ReferenceResolutionNode implements NodeAction {
 				|| !hasReferenceMarker;
 	}
 
-	private boolean hasReferenceMarker(String normalizedInput, String ordinal) {
-		return StringUtils.isNotBlank(ordinal) || containsAny(normalizedInput, PRONOUN_REFERENCE_KEYWORDS);
+	private boolean hasReferenceMarker(String normalizedInput, String ordinal, IntentRecognitionOutputDTO intentOutput) {
+		return StringUtils.isNotBlank(ordinal) || containsAny(normalizedInput, PRONOUN_REFERENCE_KEYWORDS)
+				|| hasEnumerationReference(normalizedInput, intentOutput);
 	}
 
 	private boolean canResolveFromBurstContext(String normalizedInput, BurstAnalysisContext burstAnalysisContext) {
@@ -247,7 +254,10 @@ public class ReferenceResolutionNode implements NodeAction {
 		}
 		return containsAny(normalizedInput, PIPE_ENTITY_KEYWORDS)
 				|| containsAny(normalizedInput, VALVE_ENTITY_KEYWORDS)
+				|| containsAny(normalizedInput, WORK_ORDER_ENTITY_KEYWORDS)
+				|| containsAny(normalizedInput, DEVICE_ENTITY_KEYWORDS)
 				|| containsAny(normalizedInput, PRONOUN_REFERENCE_KEYWORDS)
+				|| containsAny(normalizedInput, RESULT_ENUMERATION_KEYWORDS)
 				|| StringUtils.contains(normalizedInput, "\u7b2c\u4e00\u6839")
 				|| StringUtils.contains(normalizedInput, "\u7b2c\u4e00\u4e2a")
 				|| containsAny(normalizedInput, PIPE_ATTRIBUTE_KEYWORDS);
@@ -344,6 +354,23 @@ public class ReferenceResolutionNode implements NodeAction {
 			return "device";
 		}
 		return referenceContext == null ? "" : referenceContext.entityType();
+	}
+
+	private boolean hasEnumerationReference(String normalizedInput, IntentRecognitionOutputDTO intentOutput) {
+		if (!containsAny(normalizedInput, RESULT_ENUMERATION_KEYWORDS)) {
+			return false;
+		}
+		if (normalizedInput.contains("\u67E5\u8BE2")) {
+			return false;
+		}
+		if (intentOutput == null || intentOutput.getEntities() == null) {
+			return false;
+		}
+		String targetEntity = (String) intentOutput.getEntities().get("target_entity");
+		if (StringUtils.isBlank(targetEntity) || "unknown".equalsIgnoreCase(targetEntity)) {
+			return false;
+		}
+		return containsAny(normalizedInput, EXPLICIT_FOLLOWUP_SCOPE_KEYWORDS);
 	}
 
 	private String detectOrdinal(String userInput) {

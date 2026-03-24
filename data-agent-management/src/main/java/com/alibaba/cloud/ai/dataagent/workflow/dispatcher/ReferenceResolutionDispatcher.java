@@ -44,8 +44,10 @@ public class ReferenceResolutionDispatcher implements EdgeAction {
 		if (intentOutput != null && intentOutput.getEntities() != null) {
 			String queryKind = (String) intentOutput.getEntities().get("query_kind");
 			String followUpAction = (String) intentOutput.getEntities().get("follow_up_action");
+			boolean resolvedReference = output.isResolvedReference();
 			if ("result_followup".equalsIgnoreCase(queryKind)
-					&& ("list".equalsIgnoreCase(followUpAction) || "explain".equalsIgnoreCase(followUpAction))) {
+					&& ("list".equalsIgnoreCase(followUpAction) || "explain".equalsIgnoreCase(followUpAction))
+					&& resolvedReference) {
 				return RESULT_FOLLOW_UP_ANSWER_NODE;
 			}
 		}

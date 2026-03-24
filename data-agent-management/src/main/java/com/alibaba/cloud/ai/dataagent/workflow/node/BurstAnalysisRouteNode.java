@@ -61,7 +61,7 @@ public class BurstAnalysisRouteNode implements NodeAction {
 			"\u62a2\u4fee", "\u6f0f\u635f\u5b9a\u4f4d");
 
 	private static final List<String> REANALYZE_KEYWORDS = List.of("\u91cd\u65b0\u5206\u6790", "\u4e8c\u6b21\u5173\u9600",
-			"\u5931\u6548", "\u5931\u7075");
+			"\u5931\u6548", "\u5931\u7075", "\u91cd\u65b0\u5173\u9600");
 
 	private static final List<String> FOLLOW_UP_REFERENCE_KEYWORDS = List.of("\u8fd9\u4e2a", "\u90a3\u4e2a",
 			"\u4e0a\u8ff0", "\u4e0a\u9762", "\u5b83", "\u4ed6\u4eec", "\u7ee7\u7eed", "\u8fdb\u4e00\u6b65");
@@ -70,8 +70,8 @@ public class BurstAnalysisRouteNode implements NodeAction {
 			"\u7b2c\u4e00\u6839", "\u7b2c\u4e00\u6839\u7ba1\u6bb5", "\u8fd9\u6761", "\u8fd9\u6839", "\u8be5\u7ba1\u6bb5",
 			"\u8be5\u7ba1\u7ebf", "\u4e0a\u4e00\u6761", "\u4e0a\u4e00\u6839");
 
-	private static final List<String> BURST_FOLLOW_UP_KEYWORDS = List.of("\u7ba1\u6bb5", "\u5f71\u54cd\u8303\u56f4",
-			"\u505c\u6c34", "\u62a2\u4fee");
+	private static final List<String> BURST_FOLLOW_UP_KEYWORDS = List.of("\u91cd\u65b0\u5206\u6790", "\u4e8c\u6b21\u5173\u9600",
+			"\u5931\u6548", "\u5931\u7075", "\u91cd\u65b0\u5173\u9600");
 
 	private static final List<String> GENERAL_DEVICE_WARNING_KEYWORDS = List.of("\u9884\u8b66",
 			"\u76d1\u6d4b\u8bbe\u5907", "\u8bbe\u5907", "\u544a\u8b66");
@@ -102,16 +102,28 @@ public class BurstAnalysisRouteNode implements NodeAction {
 					"Special SQL execution mode detected, bypass burst-analysis routing");
 		}
 
+		String normalizedInput = normalize(userInput);
+		String normalizedMultiTurn = normalize(multiTurn);
 		if (intentOutput != null && intentOutput.getEntities() != null) {
+			String queryKind = (String) intentOutput.getEntities().get("query_kind");
 			String followUpAction = (String) intentOutput.getEntities().get("follow_up_action");
+			String contextScope = (String) intentOutput.getEntities().get("context_scope");
+			if ("result_followup".equalsIgnoreCase(queryKind)
+					&& ("list".equalsIgnoreCase(followUpAction) || "explain".equalsIgnoreCase(followUpAction))) {
+				return buildRoute(ROUTE_SCENE_DEFAULT_GRAPH, 1.0D,
+						"Intent recognition identified a result follow-up explanation request");
+			}
 			if ("reanalyze".equalsIgnoreCase(followUpAction)) {
 				return buildRoute(ROUTE_SCENE_BURST_ANALYSIS, 1.0D,
 						"Intent recognition identified a re-analysis request");
 			}
+			if (("fresh_query".equalsIgnoreCase(queryKind) || "system_data".equalsIgnoreCase(contextScope))
+					&& !containsAny(normalizedInput, BURST_KEYWORDS) && !containsAny(normalizedInput, REANALYZE_KEYWORDS)) {
+				return buildRoute(ROUTE_SCENE_DEFAULT_GRAPH, 0.99D,
+						"Intent recognition identified a fresh system-data query");
+			}
 		}
 
-		String normalizedInput = normalize(userInput);
-		String normalizedMultiTurn = normalize(multiTurn);
 		log.info("[CTX_TRACE][BURST_ROUTE][INPUT] query={} multiTurn={}", userInput, multiTurn);
 
 		if (containsAny(normalizedInput, BURST_KEYWORDS) && containsAny(normalizedInput, RESULT_REFERENCE_KEYWORDS)) {
@@ -119,7 +131,7 @@ public class BurstAnalysisRouteNode implements NodeAction {
 					"Current query is a burst-analysis request that references a prior result entity");
 		}
 
-		if (containsAny(normalizedInput, BURST_KEYWORDS) && !containsAny(normalizedInput, List.of("\u662f\u54ea2\u4e2a", "\u662f\u54ea\u4e9b"))) {
+		if (containsAny(normalizedInput, BURST_KEYWORDS)) {
 			return buildRoute(ROUTE_SCENE_BURST_ANALYSIS, 0.98D, "Current query contains explicit burst-analysis keywords");
 		}
 
